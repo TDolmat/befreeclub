@@ -1,0 +1,7 @@
+packages:
+  - "admin"
+  - "packages/*"
+
+allowBuilds:
+  '@biomejs/biome': true
+  esbuild: true

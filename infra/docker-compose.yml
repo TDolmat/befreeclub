@@ -1,0 +1,97 @@
+# Stack monorepo Be Free Club (faza 1: panel admina).
+# Stoi na VPS obok befreeclub-api / gigscope / starego admina (do czasu wygaszenia).
+#
+# Trzy serwisy:
+#   db             - Postgres 16, tylko loopback hosta (tunel SSH)
+#   backend        - FastAPI (czyste API + WS), Caddy widzi go jako bfc-backend:3000
+#   frontend-admin - nginx ze zbudowanym SPA, Caddy widzi go jako bfc-admin-front:80
+#
+# Caddy hosta robi split routing per domena (blok w infra/README.md).
+# Pierwszy setup i update: infra/README.md.
+#
+# Sekrety: jeden plik ../backend/.env (z backend/.env.production.example).
+# Interpolacja ${DB_PASS} ponizej czyta infra/.env - na VPS robimy symlink:
+#   ln -s ../backend/.env .env
+
+name: befreeclub
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: bfc-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: befreeclub
+      POSTGRES_USER: befreeclub
+      POSTGRES_PASSWORD: ${DB_PASS:?Brak DB_PASS - zrob symlink infra/.env -> ../backend/.env (patrz infra/README.md)}
+      # Te same initdb args co stara baza admina - inaczej zmieni sie collation.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - bfc-db-data:/var/lib/postgresql/data
+    # Loopback only - dostep z zewnatrz tylko tunelem SSH, nigdy publicznie.
+    # Port 5434: 5432 zajmuje gigscope, 5433 stara baza admina.
+    ports:
+      - "127.0.0.1:5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U befreeclub -d befreeclub"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - bfc-net
+
+  backend:
+    build:
+      context: ..
+      dockerfile: infra/backend.Dockerfile
+    container_name: bfc-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: ../backend/.env
+    environment:
+      # Twarde wartosci deployu - wygrywaja z env_file.
+      NODE_ENV: production
+      PORT: "3000"
+      DB_HOST: db
+      DB_PORT: "5432"
+      CLAUDE_BIN_PATH: /usr/local/bin/claude
+      # Puste = backend NIE serwuje SPA. Front serwuje bfc-admin-front (nginx).
+      WEB_DIST_PATH: ""
+    volumes:
+      # Tokeny `claude login` (user bfc, uid=1000) - przezywaja restarty i rebuildy.
+      - claude-config:/home/bfc/.claude
+      # PDF ebooka (faza 2): wgraj plik scp do <repo>/data/ebook/ na VPS
+      # (eksport z bucketa Supabase przy migracji 2.5). Sciezke w kontenerze
+      # wskazuje EBOOK_FILE_PATH w backend/.env. Brak pliku = download
+      # zwraca 500 "Plik tymczasowo niedostepny" (jak przy pustym env).
+      - ../data/ebook:/data/ebook:ro
+    networks:
+      - bfc-net
+      - caddy_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  frontend-admin:
+    build:
+      context: ..
+      dockerfile: infra/frontend-admin.Dockerfile
+    container_name: bfc-admin-front
+    restart: unless-stopped
+    networks:
+      - caddy_network
+
+volumes:
+  bfc-db-data:
+  claude-config:
+
+networks:
+  bfc-net:
+    driver: bridge
+  caddy_network:
+    external: true

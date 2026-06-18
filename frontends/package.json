@@ -1,0 +1,22 @@
+{
+  "name": "bfc-frontends",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Be Free Club - frontendy (React SPA per aplikacja + wspolne paczki)",
+  "scripts": {
+    "dev": "pnpm --filter @bfc/shared build && pnpm --filter @bfc/admin-web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "biome check .",
+    "format": "biome format --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=10"
+  },
+  "packageManager": "pnpm@11.1.0"
+}

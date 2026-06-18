@@ -1,0 +1,146 @@
+@import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Inter:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --brand-primary: 49 77% 74%;
+    --brand-primary-foreground: 220 12% 11%;
+
+    --background: 220 12% 11%;
+    --foreground: 0 0% 100%;
+    --card: 220 9% 18%;
+    --card-foreground: 0 0% 100%;
+    --card-hover: 220 8% 22%;
+    --popover: 220 9% 18%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 49 77% 74%;
+    --primary-foreground: 220 12% 11%;
+
+    --secondary: 220 9% 90%;
+    --secondary-foreground: 220 12% 11%;
+
+    --muted: 220 9% 18%;
+    --muted-foreground: 0 0% 100% / 0.5;
+
+    --accent: 220 9% 18%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 49 77% 74%;
+    --warning-foreground: 220 12% 11%;
+    --info: 217 91% 68%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 0 0% 100% / 0.1;
+    --input: 0 0% 100% / 0.2;
+    --ring: 49 77% 74%;
+    --radius: 0.75rem;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .hero-title {
+    font-family: 'Permanent Marker', cursive;
+    color: #f1e388;
+    letter-spacing: 0.02em;
+    text-shadow:
+      0 0 20px rgba(241, 227, 136, 0.4),
+      0 0 40px rgba(241, 227, 136, 0.4),
+      0 0 60px rgba(241, 227, 136, 0.25);
+  }
+
+  .auth-title {
+    font-family: 'Permanent Marker', cursive;
+    color: #f1e388;
+    letter-spacing: 0.02em;
+    text-shadow:
+      0 0 10px rgba(241, 227, 136, 0.35),
+      0 0 20px rgba(241, 227, 136, 0.25),
+      0 0 30px rgba(241, 227, 136, 0.15);
+  }
+
+  .glass-dark {
+    background: rgba(43, 46, 51, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 30px rgba(241, 227, 136, 0.4);
+  }
+  .glow-primary-hover:hover {
+    box-shadow: 0 0 40px rgba(241, 227, 136, 0.55);
+  }
+  .glow-card {
+    box-shadow: 0 0 40px rgba(241, 227, 136, 0.12);
+  }
+  .glow-card-hover:hover {
+    box-shadow:
+      0 0 50px rgba(241, 227, 136, 0.2),
+      0 0 100px rgba(241, 227, 136, 0.08);
+  }
+
+  .tip-box {
+    background: rgba(241, 227, 136, 0.1);
+    border: 1px solid rgba(241, 227, 136, 0.2);
+    border-radius: 1rem;
+    padding: 1rem 1.5rem;
+  }
+
+  .badge-brand {
+    background: rgba(241, 227, 136, 0.15);
+    color: #f1e388;
+    border: 1px solid rgba(241, 227, 136, 0.3);
+  }
+  .badge-success {
+    background: rgba(34, 197, 94, 0.2);
+    color: #22c55e;
+  }
+  .badge-error {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+  }
+  .badge-info {
+    background: rgba(96, 165, 250, 0.2);
+    color: #60a5fa;
+  }
+}
+
+::selection {
+  background: rgba(241, 227, 136, 0.3);
+  color: #ffffff;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}

@@ -1,0 +1,38 @@
+# ── Sekrety (NIGDY do gita) ──────────────────────────────────────────────
+# Ignoruje .env w każdym katalogu + symlink infra/.env.
+# Pliki *.env.example / *.env.production.example NIE są łapane (kończą się
+# na .example), więc szablony zostają w repo.
+.env
+*.env
+!*.env.example
+
+# ── Python / backend ─────────────────────────────────────────────────────
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.dev-outbox/
+
+# ── Node / frontends ─────────────────────────────────────────────────────
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+
+# ── Dane runtime / backupy ───────────────────────────────────────────────
+# PDF ebooka montowany jako wolumen na VPS - nie wersjonujemy binarki.
+/data/ebook/*
+!/data/ebook/.gitkeep
+# Dumpy bazy z migracji danych.
+*.dump
+
+# ── System / edytor ──────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*~

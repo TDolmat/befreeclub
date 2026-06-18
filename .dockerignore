@@ -1,0 +1,34 @@
+# Kontekst builda = root monorepo (infra/docker-compose.yml: context ..).
+# Bez tego pliku COPY backend/ wciagnie .venv (binarki z maca) i .env (sekrety).
+
+.git
+.github
+.DS_Store
+**/*.log
+
+# Python
+**/.venv
+**/__pycache__
+**/.ruff_cache
+**/.pytest_cache
+
+# Node
+**/node_modules
+**/dist
+
+# Sekrety - env wchodzi do kontenera przez docker compose (env_file), nie do obrazu
+**/.env
+**/.env.local
+**/.env.production
+**/.env.development
+
+# Nie potrzebne w obrazach
+docs
+scripts/data-migration
+README.md
+**/README.md
+infra/docker-compose.yml
+.dockerignore
+
+# Dane montowane wolumenem (PDF ebooka) - nie do obrazu
+data

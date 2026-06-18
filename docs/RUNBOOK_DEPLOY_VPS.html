@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Be Free Club - Runbook deploy na VPS (faza 1: admin)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Permanent+Marker&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#13130f; --panel:#1c1c17; --panel2:#23231d; --line:#33322a;
+    --ink:#e9e7dd; --muted:#9b988a; --yellow:#F1E388; --yellow-dim:#cdbf6f;
+    --green:#86c98a; --red:#e08c7a; --blue:#8ab6d6;
+    --code-bg:#0f0f0c;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:Inter,system-ui,sans-serif;font-size:15.5px;line-height:1.6}
+  .wrap{display:grid;grid-template-columns:268px 1fr;max-width:1280px;margin:0 auto}
+  /* sidebar */
+  nav{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;
+    border-right:1px solid var(--line);padding:26px 18px 60px;background:var(--panel)}
+  nav .logo{font-family:'Permanent Marker',cursive;color:var(--yellow);
+    font-size:22px;line-height:1.15;margin-bottom:4px}
+  nav .sub{color:var(--muted);font-size:12.5px;margin-bottom:22px}
+  nav a{display:block;color:var(--muted);text-decoration:none;font-size:13.5px;
+    padding:5px 10px;border-radius:7px;margin:1px 0}
+  nav a:hover{color:var(--ink);background:var(--panel2)}
+  nav a.sec{color:var(--yellow-dim);font-weight:600;margin-top:14px;font-size:12px;
+    text-transform:uppercase;letter-spacing:.04em}
+  /* content */
+  main{padding:42px 52px 120px;min-width:0}
+  h1{font-family:'Permanent Marker',cursive;color:var(--yellow);
+    font-size:38px;line-height:1.1;margin:0 0 6px}
+  .lede{color:var(--muted);font-size:16px;margin:0 0 26px;max-width:70ch}
+  h2{font-size:23px;margin:46px 0 10px;padding-top:14px;border-top:1px solid var(--line);
+    display:flex;align-items:center;gap:11px}
+  h2 .n{display:inline-grid;place-items:center;min-width:30px;height:30px;padding:0 8px;
+    background:var(--yellow);color:#1a1a12;border-radius:8px;font-size:15px;font-weight:700;
+    font-family:'JetBrains Mono',monospace}
+  h3{font-size:16.5px;margin:24px 0 8px;color:var(--ink)}
+  p{margin:9px 0;max-width:74ch}
+  a{color:var(--yellow-dim)}
+  code{font-family:'JetBrains Mono',monospace;font-size:.9em;background:var(--panel2);
+    padding:1.5px 6px;border-radius:5px;color:var(--yellow)}
+  pre{position:relative;background:var(--code-bg);border:1px solid var(--line);
+    border-radius:11px;padding:15px 16px;overflow:auto;margin:12px 0}
+  pre code{background:none;padding:0;color:#d6d3c6;font-size:13px;line-height:1.65;display:block;white-space:pre}
+  pre .cmt{color:#6f6c5e}
+  pre .k{color:var(--yellow)}
+  .copy{position:absolute;top:8px;right:8px;background:var(--panel2);color:var(--muted);
+    border:1px solid var(--line);border-radius:7px;font-size:11px;padding:4px 9px;cursor:pointer;
+    font-family:Inter;opacity:0;transition:.15s}
+  pre:hover .copy{opacity:1}
+  .copy:hover{color:var(--ink);border-color:var(--yellow-dim)}
+  .copy.ok{color:var(--green);border-color:var(--green)}
+  /* callouts */
+  .box{border:1px solid var(--line);border-left-width:4px;border-radius:10px;
+    padding:13px 16px;margin:16px 0;background:var(--panel)}
+  .box .t{font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+  .warn{border-left-color:var(--red)} .warn .t{color:var(--red)}
+  .tip{border-left-color:var(--green)} .tip .t{color:var(--green)}
+  .info{border-left-color:var(--blue)} .info .t{color:var(--blue)}
+  .sec{border-left-color:var(--yellow)} .sec .t{color:var(--yellow)}
+  .host{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;
+    font-weight:600;padding:2px 8px;border-radius:6px;margin:14px 0 2px;letter-spacing:.03em}
+  .host.mac{background:#23304a;color:#bcd6f2} .host.new{background:#2a3a24;color:#bfe3a8}
+  .host.old{background:#3a2a24;color:#e8b89a} .host.dns{background:#3a3424;color:#e8dca8}
+  ul,ol{max-width:74ch} li{margin:5px 0}
+  /* checklist */
+  .ck{list-style:none;padding:0;margin:14px 0}
+  .ck li{display:flex;gap:11px;align-items:flex-start;padding:9px 12px;border:1px solid var(--line);
+    border-radius:9px;margin:7px 0;background:var(--panel);cursor:pointer}
+  .ck li:hover{border-color:var(--yellow-dim)}
+  .ck input{margin-top:3px;accent-color:var(--yellow);width:17px;height:17px;flex:0 0 auto}
+  .ck li.done{opacity:.5} .ck li.done span{text-decoration:line-through}
+  table{border-collapse:collapse;margin:14px 0;width:100%;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--yellow-dim)}
+  .pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap}
+  .pill.f1{background:#2a3a24;color:#bfe3a8} .pill.f2{background:#23304a;color:#bcd6f2}
+  hr{border:none;border-top:1px solid var(--line);margin:30px 0}
+  .foot{color:var(--muted);font-size:13px;margin-top:50px;border-top:1px solid var(--line);padding-top:18px}
+  @media(max-width:880px){.wrap{grid-template-columns:1fr}nav{display:none}main{padding:28px 20px 90px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <div class="logo">Be Free Club</div>
+  <div class="sub">Runbook deploy na VPS<br>Faza 1 - panel admina</div>
+  <a class="sec">Start</a>
+  <a href="#przeglad">Przegląd</a>
+  <a href="#zanim">Zanim zaczniesz</a>
+  <a class="sec">Serwer</a>
+  <a href="#k1">1. Pierwsze logowanie</a>
+  <a href="#k2">2. User bez roota</a>
+  <a href="#k3">3. Hardening + firewall</a>
+  <a href="#k4">4. Docker</a>
+  <a href="#k5">5. Caddy na hoście</a>
+  <a class="sec">Aplikacja</a>
+  <a href="#k6">6. Kod na serwer</a>
+  <a href="#k7">7. Sekrety (.env)</a>
+  <a href="#k8">8. Start + logowanie</a>
+  <a class="sec">Dane i cutover</a>
+  <a href="#k9">9. Migracja danych</a>
+  <a href="#k10">10. DNS + weryfikacja</a>
+  <a href="#k11">11. Po przepięciu</a>
+  <a class="sec">Reszta</a>
+  <a href="#bezp">Bezpieczeństwo</a>
+  <a href="#backup">Backupy</a>
+  <a href="#rollback">Rollback</a>
+  <a href="#sciaga">Ściąga komend</a>
+</nav>
+<main>
+
+<h1>Deploy na nowy VPS</h1>
+<p class="lede">Krok po kroku: stawiasz nowy serwer od zera, hartujesz go, wrzucasz panel admina (FastAPI + nginx + Postgres za Caddy) i przenosisz dane ze starego boxa. Landing robimy osobno w fazie 2. Komendy są do kopiowania. Checkboxy zapamiętują postęp w przeglądarce.</p>
+
+<div class="box info">
+  <div class="t">Legenda hostów</div>
+  Przy każdym bloku komend jest etykieta gdzie to odpalić:
+  <span class="host mac">NA MACU</span> Twój laptop &nbsp;
+  <span class="host new">NOWY VPS</span> świeży serwer &nbsp;
+  <span class="host old">STARY VPS</span> obecny box z adminem &nbsp;
+  <span class="host dns">DNS</span> panel Hostinger.
+  <br>Podmieniaj WIELKIE_SŁOWA (np. <code>NOWE_IP</code>, <code>DB_PASS</code>) na swoje wartości.
+</div>
+
+<h2 id="przeglad"><span class="n">i</span>Przegląd</h2>
+<p>W tej fazie przenosimy <b>tylko panel admina</b> (<code>admin.befreeclub.pro</code>). Stary VPS z adminem, <code>befreeclub-api</code> i <code>gigscope</code> zostaje włączony przez całą operację - to Twój rollback. Wygaszasz go dopiero, gdy nowy panel pochodzi kilka dni bez problemów.</p>
+<table>
+<tr><th>Robimy teraz <span class="pill f1">faza 1</span></th><th>Później <span class="pill f2">faza 2</span></th></tr>
+<tr>
+<td>Nowy serwer + hardening<br>Panel admina (Circle DM) na FastAPI<br>Migracja danych admina<br>Przepięcie <code>admin.befreeclub.pro</code></td>
+<td>Landing <code>befreeclub.pl</code><br>Billing / subskrypcje / Stripe<br>Sekcje: Subskrypcje, Landing page, Ustawienia<br>Przeniesienie <code>befreeclub-api</code> i <code>gigscope</code></td>
+</tr>
+</table>
+<p>Cel architektury na nowym boxie: trzy kontenery (<code>bfc-db</code> Postgres, <code>bfc-backend</code> API, <code>bfc-admin-front</code> nginx) w sieci <code>bfc-net</code>, a osobny Caddy hosta robi split routing i SSL na <code>caddy_network</code>.</p>
+
+<h2 id="zanim"><span class="n">ii</span>Zanim zaczniesz - co miej pod ręką</h2>
+<ul class="ck" id="ck-prep">
+<li><input type="checkbox"><span><b>IP nowego VPS</b> + hasło root (albo klucz SSH ustawiony przy zamówieniu OVH). To <code>NOWE_IP</code>.</span></li>
+<li><input type="checkbox"><span><b>Dostęp SSH do starego VPS</b> (do dumpa danych). To <code>STARE_IP</code> + Twój user.</span></li>
+<li><input type="checkbox"><span><b>Twój klucz SSH</b> na Macu (<code>~/.ssh/id_ed25519.pub</code>). Jak nie masz: <code>ssh-keygen -t ed25519</code>.</span></li>
+<li><input type="checkbox"><span><b>Dostęp do DNS w Hostinger</b> (domena <code>befreeclub.pro</code>, rekord A dla <code>admin</code>).</span></li>
+<li><input type="checkbox"><span><b>Circle Headless token</b> (ten sam co w starym <code>befreeclub-api</code> / starym adminie, zmienna <code>BOOTSTRAP_ADMIN_TOKEN</code>). Bez niego Circle DM nie zaloguje się do Circle.</span></li>
+<li><input type="checkbox"><span><b>Login do Claude Max</b> (zalogujesz CLI w kontenerze przez device flow).</span></li>
+<li><input type="checkbox"><span><b>Hasło DB starego boxa</b> (<code>DB_PASS</code> w <code>~/repos/befreeclub/admin/.env</code> na starym VPS) - do dumpa.</span></li>
+</ul>
+<div class="box tip">
+  <div class="t">Zrób dzień wcześniej</div>
+  Obniż <b>TTL</b> rekordu A <code>admin.befreeclub.pro</code> w Hostinger do <b>300 s</b> (5 min). Wtedy przepięcie DNS w kroku 10 zadziała w minuty, nie w godziny.
+</div>
+
+<h2 id="k1"><span class="n">1</span>Pierwsze logowanie i podstawy</h2>
+<div class="host mac">NA MACU</div>
+<pre><code><span class="cmt"># Pierwsze wejście jako root (z hasłem od OVH albo kluczem)</span>
+ssh root@NOWE_IP</code></pre>
+<div class="host new">NOWY VPS</div>
+<pre><code><span class="cmt"># Aktualizacja systemu, strefa czasu, nazwa hosta</span>
+apt update &amp;&amp; apt -y upgrade
+timedatectl set-timezone Europe/Warsaw
+hostnamectl set-hostname bfc-prod
+<span class="cmt"># Narzędzia, których użyjemy dalej</span>
+apt -y install ufw fail2ban git curl ca-certificates postgresql-client</code></pre>
+
+<h2 id="k2"><span class="n">2</span>User bez roota + klucz SSH</h2>
+<p>Nie pracujemy na roocie. Tworzymy usera <code>tomek</code> z sudo i wgrywamy do niego Twój klucz.</p>
+<div class="host new">NOWY VPS</div>
+<pre><code>adduser tomek            <span class="cmt"># ustaw hasło, resztę pól Enter</span>
+usermod -aG sudo tomek</code></pre>
+<div class="host mac">NA MACU</div>
+<pre><code><span class="cmt"># Skopiuj swój klucz publiczny na nowego usera</span>
+ssh-copy-id tomek@NOWE_IP
+<span class="cmt"># Sprawdź, że wchodzisz bez hasła</span>
+ssh tomek@NOWE_IP</code></pre>
+<div class="box tip"><div class="t">Wskazówka</div>Od teraz loguj się tylko jako <code>tomek</code>. Roota użyjesz przez <code>sudo</code>.</div>
+
+<h2 id="k3"><span class="n">3</span>Hardening SSH + firewall</h2>
+<p>Trzy rzeczy: wyłączamy logowanie roota i hasłem (tylko klucz), zapora przepuszcza tylko SSH/HTTP/HTTPS, fail2ban banuje próby zgadywania.</p>
+<div class="host new">NOWY VPS</div>
+<pre><code><span class="cmt"># Firewall - najpierw przepuść SSH, potem włącz (inaczej się zablokujesz)</span>
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+sudo ufw status</code></pre>
+<pre><code><span class="cmt"># Hardening SSH: dopisz na końcu pliku konfiguracji</span>
+sudo tee /etc/ssh/sshd_config.d/10-bfc.conf &gt; /dev/null &lt;&lt;'EOF'
+PermitRootLogin no
+PasswordAuthentication no
+PubkeyAuthentication yes
+EOF
+sudo systemctl restart ssh</code></pre>
+<div class="box warn">
+  <div class="t">Zanim zamkniesz terminal</div>
+  Otwórz <b>drugą</b> sesję <code>ssh tomek@NOWE_IP</code> i sprawdź, że wchodzi. Jak działa - dopiero wtedy zamykaj pierwszą. Inaczej przy błędzie w configu zostajesz na zewnątrz.
+</div>
+<pre><code><span class="cmt"># fail2ban - domyślny jail SSH wystarcza, włącz i zostaw</span>
+sudo systemctl enable --now fail2ban
+<span class="cmt"># Automatyczne aktualizacje bezpieczeństwa</span>
+sudo apt -y install unattended-upgrades
+sudo dpkg-reconfigure -plow unattended-upgrades</code></pre>
+
+<h2 id="k4"><span class="n">4</span>Docker i sieć Caddy</h2>
+<div class="host new">NOWY VPS</div>
+<pre><code><span class="cmt"># Oficjalny skrypt instalacyjny Dockera</span>
+curl -fsSL https://get.docker.com | sudo sh
+<span class="cmt"># Pozwól userowi tomek używać dockera bez sudo</span>
+sudo usermod -aG docker tomek
+<span class="cmt"># Przeloguj sesję, żeby grupa zadziałała</span>
+exit</code></pre>
+<div class="host mac">NA MACU</div>
+<pre><code>ssh tomek@NOWE_IP
+docker run --rm hello-world      <span class="cmt"># test: działa bez sudo?</span></code></pre>
+<div class="host new">NOWY VPS</div>
+<pre><code><span class="cmt"># Wspólna sieć, przez którą Caddy widzi backend i front</span>
+docker network create caddy_network</code></pre>
+
+<h2 id="k5"><span class="n">5</span>Caddy na hoście (reverse proxy + SSL)</h2>
+<p>Caddy stoi osobno i sam ogarnia certyfikaty Let's Encrypt. Na razie stawiamy go z pustą konfiguracją - blok domeny dodamy dopiero po wgraniu aplikacji (krok 10), bo cert wymaga działającego backendu i DNS celującego w nowy box.</p>
+<div class="host new">NOWY VPS</div>
+<pre><code>mkdir -p ~/caddy &amp;&amp; cd ~/caddy</code></pre>
+<p>Utwórz <code>~/caddy/docker-compose.yml</code>:</p>
+<pre><code>name: caddy
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - caddy_network
+volumes:
+  caddy-data:
+  caddy-config:
+networks:
+  caddy_network:
+    external: true</code></pre>
+<pre><code><span class="cmt"># Pusty Caddyfile na start (blok admina dodasz w kroku 10)</span>
+echo "# bloki domen dodawane w kroku 10" &gt; ~/caddy/Caddyfile
+docker compose up -d
+docker compose ps</code></pre>
+<div class="box info"><div class="t">Czemu pusto</div>Gdyby Caddy dostał teraz blok <code>admin.befreeclub.pro</code>, próbowałby wyrobić certyfikat, a DNS jeszcze wskazuje stary box. Najpierw aplikacja, potem DNS, na końcu blok Caddy.</div>
+
+<h2 id="k6"><span class="n">6</span>Kod na serwer</h2>
+<p>Monorepo trafia na serwer przez prywatne repo GitHub + deploy key (czysto i powtarzalnie przy aktualizacjach). Najpierw jednak musisz zrobić z katalogu repo i wypchnąć go na GitHub.</p>
+
+<div class="box warn">
+  <div class="t">Najpierw .gitignore - krytyczne</div>
+  Repo zawiera pliki <code>.env</code> z sekretami i <code>.venv</code> / <code>node_modules</code>. <b>Nie mogą</b> trafić do gita. Upewnij się, że root <code>.gitignore</code> wyklucza: <code>.env</code>, <code>*.env</code> (poza <code>*.example</code>), <code>.venv/</code>, <code>node_modules/</code>, <code>data/</code>, <code>.dev-outbox/</code>, <code>__pycache__/</code>.
+</div>
+
+<div class="host mac">NA MACU</div>
+<pre><code>cd ~/repos/befreeclub/migracja/befreeclub
+<span class="cmt"># Init repo i pierwszy commit (zrób to Ty - commitujemy jako Ty)</span>
+git init
+git add -A
+git status            <span class="cmt"># SPRAWDŹ: żadnego .env na liście!</span>
+git commit -m "init befreeclub monorepo"</code></pre>
+<p>Załóż prywatne repo na GitHub (np. <code>befreeclub</code>) i wypchnij. Potem na serwerze tworzysz deploy key (klucz tylko do tego repo, read-only):</p>
+<div class="host new">NOWY VPS</div>
+<pre><code>ssh-keygen -t ed25519 -f ~/.ssh/befreeclub_deploy -N ""
+cat ~/.ssh/befreeclub_deploy.pub
+<span class="cmt"># ^ wklej w GitHub: repo > Settings > Deploy keys > Add (read-only)</span>
+cat &gt;&gt; ~/.ssh/config &lt;&lt;'EOF'
+Host github-bfc
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/befreeclub_deploy
+  IdentitiesOnly yes
+EOF
+mkdir -p ~/repos/befreeclub &amp;&amp; cd ~/repos/befreeclub
+git clone git@github-bfc:TWOJ_LOGIN/befreeclub.git befreeclub
+cd befreeclub</code></pre>
+<div class="box info"><div class="t">Bez GitHuba (alternatywa)</div>Jak nie chcesz repo na GitHub, wgraj kod bezpośrednio: <code>rsync -av --exclude .venv --exclude node_modules --exclude '*.env' ~/repos/befreeclub/migracja/befreeclub/ tomek@NOWE_IP:~/repos/befreeclub/befreeclub/</code> z Maca. Aktualizacje robisz wtedy ponownym rsync zamiast <code>git pull</code>.</div>
+
+<h2 id="k7"><span class="n">7</span>Sekrety (.env)</h2>
+<p>Jeden plik sekretów: <code>backend/.env</code>. Compose czyta go i przez symlink <code>infra/.env</code> bierze <code>DB_PASS</code> do interpolacji.</p>
+<div class="host new">NOWY VPS</div>
+<pre><code>cd ~/repos/befreeclub/befreeclub
+cp backend/.env.production.example backend/.env
+<span class="cmt"># Wygeneruj mocne hasło Postgresa</span>
+openssl rand -hex 24        <span class="cmt"># skopiuj wynik</span>
+nano backend/.env</code></pre>
+<p>W <code>backend/.env</code> ustaw <b>na fazę 1</b> tylko to:</p>
+<table>
+<tr><th>Zmienna</th><th>Wartość</th></tr>
+<tr><td><code>DB_PASS</code></td><td>wynik <code>openssl rand -hex 24</code></td></tr>
+<tr><td><code>BOOTSTRAP_ADMIN_TOKEN</code></td><td>Twój Circle Headless token. <b>Wymagany</b>, żeby Circle DM mintował JWT i gadał z Circle.</td></tr>
+<tr><td><code>OPENAI_API_KEY</code></td><td>opcjonalnie - włącza transkrypcje głosówek i opisy zdjęć. Puste = te funkcje wyłączone, reszta działa.</td></tr>
+</table>
+<p>Wszystkie zmienne fazy 2 (<code>STRIPE_*</code>, <code>RESEND_*</code>, <code>CIRCLE_*</code>, <code>SENDER_*</code>, <code>META_*</code>) <b>zostaw puste</b> - landing migrujemy później, a backend startuje z nimi pustymi bez błędu.</p>
+<pre><code><span class="cmt"># Symlink, żeby compose widział DB_PASS przy interpolacji</span>
+cd infra
+ln -s ../backend/.env .env
+<span class="cmt"># Zamknij plik sekretów przed światem</span>
+chmod 600 ../backend/.env</code></pre>
+<div class="box warn"><div class="t">Reguła sekretów</div><code>backend/.env</code> nigdy nie wchodzi do gita ani nigdzie poza ten serwer. <code>chmod 600</code> = czyta go tylko Twój user. Sprawdź: <code>ls -l backend/.env</code> ma pokazać <code>-rw-------</code>.</div>
+
+<h2 id="k8"><span class="n">8</span>Start aplikacji + konta</h2>
+<div class="host new">NOWY VPS</div>
+<pre><code>cd ~/repos/befreeclub/befreeclub/infra
+docker compose up -d --build      <span class="cmt"># pierwszy build ~5 min</span>
+docker compose ps
+docker compose logs backend | tail -20</code></pre>
+<p>Migracje alembica (schematy, tabele, seed) lecą same przy starcie backendu. Błąd migracji = kontener nie wstaje i się restartuje - wtedy czytaj logi.</p>
+<pre><code><span class="cmt"># Test backendu wewnątrz sieci</span>
+docker compose exec backend curl -fsS http://localhost:3000/health</code></pre>
+<h3>Claude login (dla draftów Circle DM)</h3>
+<pre><code>docker compose exec -it backend claude login
+<span class="cmt"># Otwórz pokazany URL na Macu zalogowany w Claude Max, Authorize</span>
+docker compose exec backend claude --print "Powiedz czesc."</code></pre>
+<h3>Konta logowania do panelu</h3>
+<pre><code>docker compose exec -it backend set-auth-password --email tomasz@befreeclub.pl
+<span class="cmt"># Hasło ze stdin, bez echa, min 12 znaków. Powtórz dla Krystiana:</span>
+docker compose exec -it backend set-auth-password --email krystian@befreeclub.pl</code></pre>
+<div class="box tip"><div class="t">Status</div>Masz działający, pusty panel na nowym boxie. Jeszcze nikt go nie widzi (DNS celuje w stary). Teraz wlewamy dane.</div>
+
+<h2 id="k9"><span class="n">9</span>Migracja danych ze starego boxa</h2>
+<p>To moment z oknem serwisowym. Zatrzymujemy starego admina (żeby dane były ostateczne), robimy dump, przenosimy na nowy box, wgrywamy do bazy tymczasowej i odpalamy skrypt mapujący do nowych schematów.</p>
+
+<h3>9a. Stop starego admina + dump</h3>
+<div class="host old">STARY VPS</div>
+<pre><code>ssh STARE_IP
+cd ~/repos/befreeclub/admin
+docker compose stop admin-server      <span class="cmt"># start okna serwisowego - admin off</span>
+mkdir -p ~/backups
+docker compose exec -T admin-db pg_dump -U admin -d bfc_admin -Fc \
+  &gt; ~/backups/bfc_admin_$(date +%F).dump
+ls -lh ~/backups</code></pre>
+
+<h3>9b. Przenieś dump na nowy box</h3>
+<div class="host mac">NA MACU</div>
+<pre><code><span class="cmt"># Pobierz dump ze starego i wyślij na nowy (przez Twój laptop)</span>
+scp STARE_IP:~/backups/bfc_admin_*.dump /tmp/
+scp /tmp/bfc_admin_*.dump tomek@NOWE_IP:~/</code></pre>
+
+<h3>9c. Wgraj dump do bazy tymczasowej na nowym boxie</h3>
+<div class="host new">NOWY VPS</div>
+<pre><code>cd ~/repos/befreeclub/befreeclub/infra
+<span class="cmt"># Baza tymczasowa na surowe dane ze starego schematu (public.*)</span>
+docker compose exec -T db createdb -U befreeclub bfc_admin_src
+<span class="cmt"># Wgraj dump (--no-owner bo user nazywa się inaczej niż na starym boxie)</span>
+cat ~/bfc_admin_*.dump | docker compose exec -T db \
+  pg_restore -U befreeclub --no-owner --no-acl -d bfc_admin_src</code></pre>
+
+<h3>9d. Uruchom skrypt migracji</h3>
+<p>Skrypt mapuje stare tabele (<code>public.*</code>) na nowe schematy (<code>admin.*</code>, <code>circle_dm.*</code>) i przenosi je do bazy <code>befreeclub</code>. Odpalamy go na hoście, oba Postgresy widzi po loopbacku <code>127.0.0.1:5434</code>.</p>
+<div class="host new">NOWY VPS</div>
+<pre><code><span class="cmt"># uv do odpalenia skryptu (jednorazowo)</span>
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source ~/.bashrc
+cd ~/repos/befreeclub/befreeclub/scripts/data-migration</code></pre>
+<pre><code><span class="cmt"># DRY-RUN: pokazuje plan i liczniki, nic nie zapisuje. DB_PASS = to z backend/.env</span>
+uv run --with asyncpg python migrate_data.py \
+  --source-dsn "postgresql://befreeclub:DB_PASS@127.0.0.1:5434/bfc_admin_src" \
+  --target-dsn "postgresql://befreeclub:DB_PASS@127.0.0.1:5434/befreeclub" \
+  --dry-run</code></pre>
+<p>Plan czysty, liczniki się zgadzają? Odpal to samo <b>bez</b> <code>--dry-run</code>:</p>
+<pre><code>uv run --with asyncpg python migrate_data.py \
+  --source-dsn "postgresql://befreeclub:DB_PASS@127.0.0.1:5434/bfc_admin_src" \
+  --target-dsn "postgresql://befreeclub:DB_PASS@127.0.0.1:5434/befreeclub"</code></pre>
+<p>Kod wyjścia <code>0</code> i raport bez słowa <code>ROZJAZD</code> = dane skopiowane i zacommitowane (16 tabel, z zachowaniem id i sekwencji). Raport drukuje sam skrypt.</p>
+<div class="box info"><div class="t">Co jeśli błąd</div><code>1</code> = rozjazd w weryfikacji (zrobiony rollback, baza nietknięta). <code>2</code> = błąd planu/SQL. Powtórka po naprawie: dodaj <code>--truncate</code> i potwierdź wpisując <code>befreeclub</code>. Pełny troubleshooting w <code>scripts/data-migration/MIGRACJA_DANYCH.md</code>.</div>
+<pre><code><span class="cmt"># Spot-check po migracji</span>
+cd ~/repos/befreeclub/befreeclub/infra
+docker compose exec db psql -U befreeclub -d befreeclub -c "SELECT count(*) FROM circle_dm.threads"
+docker compose exec db psql -U befreeclub -d befreeclub -c "SELECT id, email FROM admin.users"
+<span class="cmt"># Sprzątanie bazy tymczasowej</span>
+docker compose exec -T db dropdb -U befreeclub bfc_admin_src
+rm ~/bfc_admin_*.dump</code></pre>
+
+<h2 id="k10"><span class="n">10</span>Przepięcie DNS + Caddy + weryfikacja</h2>
+<p>Teraz kierujemy świat na nowy box. Najpierw dodajemy blok Caddy, potem przepinamy DNS, Caddy wyrabia certyfikat sam.</p>
+<h3>10a. Blok Caddy na nowym boxie</h3>
+<div class="host new">NOWY VPS</div>
+<p>Dopisz do <code>~/caddy/Caddyfile</code>:</p>
+<pre><code>admin.befreeclub.pro {
+    @backend path /api/* /ws /health /health/*
+    reverse_proxy @backend bfc-backend:3000
+    reverse_proxy bfc-admin-front:80
+}</code></pre>
+<pre><code>cd ~/caddy
+docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile</code></pre>
+<div class="box info"><div class="t">Kolejność w bloku ma znaczenie</div>API, WebSocket i healthchecki łapie matcher <code>@backend</code> i idą do backendu. Cała reszta (SPA) do nginx. Matcher musi być PRZED catch-all - Caddy bierze pierwszy pasujący.</div>
+
+<h3>10b. Przełącz DNS</h3>
+<div class="host dns">DNS - HOSTINGER</div>
+<p>Zmień rekord <b>A</b> dla <code>admin</code> (host <code>admin.befreeclub.pro</code>) ze starego IP na <code>NOWE_IP</code>. TTL już masz obniżony do 300 s. Reszta rekordów (<code>api</code>, <code>scoper</code>, root) zostaje na starym boxie - ich nie ruszamy.</p>
+
+<h3>10c. Weryfikacja</h3>
+<div class="host mac">NA MACU</div>
+<pre><code><span class="cmt"># Poczekaj na propagację i cert (kilka minut), sprawdzaj</span>
+dig +short admin.befreeclub.pro      <span class="cmt"># ma pokazać NOWE_IP</span>
+curl https://admin.befreeclub.pro/health</code></pre>
+<ul class="ck" id="ck-verify">
+<li><input type="checkbox"><span><code>/health</code> zwraca <code>{"ok":true}</code> przez HTTPS (cert wyrobiony).</span></li>
+<li><input type="checkbox"><span>Logujesz się do panelu <b>starym hasłem</b> (hashe scrypt przeszły migrację bez zmian).</span></li>
+<li><input type="checkbox"><span>Lista wątków, członków, ustawienia, KB i feedback wyglądają jak przed migracją.</span></li>
+<li><input type="checkbox"><span><b>Circle DM działa na żywo</b> - test wyłącznie na kontach Paweł Wyrozumski i Tomasz Dwa, nigdy na realnych członkach.</span></li>
+<li><input type="checkbox"><span><code>/health/claude</code> zielony (Claude CLI zalogowany).</span></li>
+</ul>
+
+<h2 id="k11"><span class="n">11</span>Po przepięciu</h2>
+<p>Stary box zostaje jako rollback. Server admina jest już zatrzymany; bazę możesz też zatrzymać, ale <b>nie kasuj</b> wolumenów ani kontenerów, dopóki nowy panel nie pochodzi kilku dni w realnym użyciu.</p>
+<div class="host old">STARY VPS</div>
+<pre><code>cd ~/repos/befreeclub/admin
+docker compose stop admin-db      <span class="cmt"># opcjonalnie - baza też off, ale zostaje</span></code></pre>
+<div class="box warn"><div class="t">Pamiętaj o rozjeździe danych</div>Wszystko, co zrobisz w NOWYM panelu po przepięciu (wysłane DM-y, statusy, notatki), nie istnieje w starej bazie. Rollback po godzinach pracy = utrata tych zmian. Dlatego rollback ma sens tylko tuż po cutover, nie po tygodniu.</div>
+
+<h2 id="bezp"><span class="n">!</span>Bezpieczeństwo - co zabezpieczyć i gdzie</h2>
+<p>Część z tego zrobiłeś po drodze. To zbiorcza checklista dla boxa, który trzyma dane członków i (w fazie 2) klucze Stripe.</p>
+<ul class="ck" id="ck-sec">
+<li><input type="checkbox"><span><b>SSH tylko kluczem</b> - bez hasła, bez roota (krok 3). To zamyka 99% automatycznych ataków.</span></li>
+<li><input type="checkbox"><span><b>Firewall ufw</b> przepuszcza tylko 22/80/443. Sprawdź <code>sudo ufw status</code>.</span></li>
+<li><input type="checkbox"><span><b>fail2ban</b> aktywny - banuje zgadywanie SSH.</span></li>
+<li><input type="checkbox"><span><b>Postgres nigdy publicznie</b> - compose wystawia go tylko na <code>127.0.0.1:5434</code> (loopback). Z zewnątrz dostęp wyłącznie tunelem SSH. Nie zmieniaj tego na <code>0.0.0.0</code>.</span></li>
+<li><input type="checkbox"><span><b>backend/.env z chmod 600</b>, nigdy w gicie. To jedyne miejsce z sekretami.</span></li>
+<li><input type="checkbox"><span><b>Kontener backendu jako user uid=1000</b> (nie root) - już tak jest w obrazie. Wymóg Claude CLI i dobra higiena.</span></li>
+<li><input type="checkbox"><span><b>Snapshot OVH przed cutover</b> - zrób snapshot nowego boxa tuż przed krokiem 9. Coś się sypie = przywracasz w minutę.</span></li>
+<li><input type="checkbox"><span><b>Automatyczne aktualizacje bezpieczeństwa</b> (unattended-upgrades, krok 3).</span></li>
+<li><input type="checkbox"><span><b>Let's Encrypt auto-renew</b> - Caddy odnawia cert sam, nic nie robisz.</span></li>
+<li><input type="checkbox"><span><b>Faza 2 - klucze Stripe live</b>: backend ma bezpiecznik, w dev odmawia startu z kluczem <code>sk_live_</code>. Na prodzie <code>NODE_ENV=production</code> i live klucze są OK. Pilnuj, żeby dev i prod się nie pomyliły.</span></li>
+<li><input type="checkbox"><span><b>Dług do spłaty przy fazie 2</b>: stary <code>ADMIN_TOKEN</code> był zahardkodowany w kodzie landinga (w gicie). Przy migracji landinga go zrotuj.</span></li>
+</ul>
+
+<h2 id="backup"><span class="n">↻</span>Backupy</h2>
+<p>Snapshot OVH (cały dysk) to jedno, ale chcesz też regularny dump samej bazy - mały, szybki do odtworzenia, łatwy do zrzucenia poza serwer.</p>
+<div class="host new">NOWY VPS</div>
+<pre><code><span class="cmt"># Skrypt: codzienny dump bazy, trzyma 14 ostatnich</span>
+mkdir -p ~/backups
+cat &gt; ~/backups/pg-backup.sh &lt;&lt;'EOF'
+#!/bin/bash
+cd ~/repos/befreeclub/befreeclub/infra
+F=~/backups/befreeclub_$(date +%F).dump
+docker compose exec -T db pg_dump -U befreeclub -d befreeclub -Fc &gt; "$F"
+ls -t ~/backups/befreeclub_*.dump | tail -n +15 | xargs -r rm
+EOF
+chmod +x ~/backups/pg-backup.sh
+<span class="cmt"># Cron codziennie o 4:00</span>
+( crontab -l 2&gt;/dev/null; echo "0 4 * * * ~/backups/pg-backup.sh" ) | crontab -</code></pre>
+<div class="box tip"><div class="t">Zrzuć poza serwer</div>Backup, który leży na tym samym dysku co baza, nie chroni przed utratą serwera. Włącz w panelu OVH automatyczny backup VPS (Premium), albo dorzuć do skryptu wysyłkę dumpa na zewnętrzny storage (OVH Object Storage / inny).</div>
+
+<h2 id="rollback"><span class="n">←</span>Rollback (gdyby coś poszło nie tak)</h2>
+<p>Cofnięcie = DNS z powrotem na stary box + start starego admina. Stara baza była tylko czytana, więc wraca dokładnie stan sprzed migracji.</p>
+<div class="host dns">DNS - HOSTINGER</div>
+<p>Rekord A <code>admin.befreeclub.pro</code> z powrotem na <code>STARE_IP</code>.</p>
+<div class="host old">STARY VPS</div>
+<pre><code>cd ~/repos/befreeclub/admin
+docker compose start admin-db admin-server</code></pre>
+<p>Stary Caddy dalej ma swój blok <code>admin.befreeclub.pro</code> celujący w <code>bfc-admin:3000</code>, więc po wróceniu DNS wszystko wstaje jak było.</p>
+
+<h2 id="sciaga"><span class="n">⌘</span>Ściąga - aktualizacja po zmianach kodu</h2>
+<p>Gdy później zmienisz kod (np. doślemy fazę 2), aktualizacja na nowym boxie:</p>
+<div class="host new">NOWY VPS</div>
+<pre><code>cd ~/repos/befreeclub/befreeclub
+git pull
+cd infra
+docker compose up -d --build backend          <span class="cmt"># zmiany w backend/</span>
+docker compose up -d --build frontend-admin   <span class="cmt"># zmiany we frontends/</span></code></pre>
+<p>Backend i front to osobne kontenery - restart jednego nie zdejmuje drugiego. Bazy (<code>db</code>) i tokenów Claude nie ruszasz, przeżywają rebuildy.</p>
+
+<div class="foot">
+  Be Free Club - runbook fazy 1. Źródła w repo: <code>infra/README.md</code>, <code>scripts/data-migration/MIGRACJA_DANYCH.md</code>, <code>docs/PLAN_LANDING.md</code> (faza 2), <code>docs/CHECKLISTA_ZRZUT_SUPABASE.md</code> (przed landingiem).
+  Postęp checkboxów zapisuje się w tej przeglądarce.
+</div>
+
+</main>
+</div>
+<script>
+  // copy buttons
+  document.querySelectorAll('pre').forEach(pre=>{
+    const b=document.createElement('button');b.className='copy';b.textContent='kopiuj';
+    b.onclick=()=>{const t=pre.querySelector('code').innerText;
+      navigator.clipboard.writeText(t).then(()=>{b.textContent='skopiowane';b.classList.add('ok');
+        setTimeout(()=>{b.textContent='kopiuj';b.classList.remove('ok')},1400)})};
+    pre.appendChild(b);
+  });
+  // persistent checklists
+  document.querySelectorAll('.ck').forEach(list=>{
+    const id=list.id;
+    list.querySelectorAll('li').forEach((li,i)=>{
+      const cb=li.querySelector('input');const key=id+':'+i;
+      if(localStorage.getItem(key)==='1'){cb.checked=true;li.classList.add('done')}
+      const sync=()=>{li.classList.toggle('done',cb.checked);
+        localStorage.setItem(key,cb.checked?'1':'0')};
+      cb.addEventListener('change',sync);
+      li.addEventListener('click',e=>{if(e.target!==cb){cb.checked=!cb.checked;sync()}});
+    });
+  });
+</script>
+</body>
+</html>
