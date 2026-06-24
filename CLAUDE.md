@@ -34,6 +34,7 @@ Dotyczy logiki gdzie regresja boli: walidatory, serwisy, transformacje, mapowani
 
 ## Konwencje (z `docs/spec/port-kontrakt.md`)
 
+- **Język: kod po angielsku, teksty dla człowieka po polsku.** Komentarze w kodzie i nazwy (zmienne, funkcje, pliki, w tym komentarze w `.env`/configu) po **angielsku** - industry standard, międzynarodowa konwencja. Po polsku zostają tylko teksty dla człowieka: UI copy i błędy pokazywane userowi (głos marki) oraz nasze docs/runbooki.
 - API JSON camelCase (pydantic `CamelModel`, alias to_camel). Błąd: `{"error": "..."}`, walidacja 400 (nie 422). Daty: `toISOString` z `Z`.
 - Auth: `require_auth` na `/api/*` (poza `/api/auth/*` i `/health*`). Dev bypass gdy `NODE_ENV != production`.
 - Jeden proces uvicorn (stan in-memory: cache, semafory, WS). Nie skalować na multi-worker bez przeniesienia stanu.
