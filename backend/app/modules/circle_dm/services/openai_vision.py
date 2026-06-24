@@ -6,8 +6,8 @@ Bledy 1:1 wg docs/spec/services-media.md sekcja 8. System prompt DOSLOWNIE z TS.
 
 import httpx
 
-from app.core.config import settings
 from app.core.logging import create_logger
+from app.modules.admin.services import secrets, settings_catalog
 
 log = create_logger("vision")
 
@@ -45,11 +45,13 @@ Zasady:
 
 async def describe_image_from_url(image_url: str) -> dict:
     """DescribeResult: {"description": str, "tokensUsed": int | None}."""
-    if not settings.OPENAI_API_KEY:
+    api_key = secrets.resolve_sync("openai.api_key", env_fallback=True)
+    if not api_key:
         raise VisionConfigError("OPENAI_API_KEY not set")
 
+    model = await settings_catalog.effective("openaiVisionModel")
     body = {
-        "model": settings.OPENAI_VISION_MODEL,
+        "model": model,
         "max_tokens": 300,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -68,7 +70,7 @@ async def describe_image_from_url(image_url: str) -> dict:
             res = await client.post(
                 OPENAI_URL,
                 headers={
-                    "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
+                    "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
                 },
                 json=body,

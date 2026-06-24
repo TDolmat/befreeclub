@@ -23,13 +23,17 @@ router = APIRouter()
 
 
 async def _run_membership_cleanup() -> dict:
+    # Reczny trigger admina: tryb (dryRun) brany z admin.settings
+    # `members.cleanup`. Bramka `enabled` go NIE blokuje (swiadoma akcja).
     result = await cleanup_worker.run_now()
-    # {success, checked, removed} 1:1 z circle-cleanup + decyzje per czlonek
-    # (panel admina widzi, czemu kto zostal/wylecial).
+    # {success, checked, removed} 1:1 z circle-cleanup + tryb/wouldRemove
+    # + decyzje per czlonek (panel admina widzi, czemu kto zostal/wylecial).
     return {
         "success": True,
         "checked": result.checked,
         "removed": result.removed,
+        "wouldRemove": result.would_remove,
+        "dryRun": result.dry_run,
         "decisions": [
             {
                 "memberId": d.member_id,

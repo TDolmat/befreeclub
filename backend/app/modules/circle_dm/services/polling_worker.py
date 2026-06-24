@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.core.db import async_session_maker
 from app.core.logging import create_logger
 from app.core.ws import broker
+from app.modules.admin.services import settings_catalog
 from app.modules.circle_dm.models import Account
 from app.modules.circle_dm.services.thread_sync import (
     sync_messages_for_thread,
@@ -87,7 +88,11 @@ async def _loop() -> None:
         except Exception as err:
             # Blad spoza petli per konto (np. select kont) nie moze zabic workera.
             log.error(f"tick failed: {err}")
-        await asyncio.sleep(settings.POLLING_INTERVAL_MS / 1000)
+        # DB nadpisuje env (settings_catalog -> admin.settings). Zmiana w panelu
+        # zacznie obowiazywac od nastepnego ticku, ale start log ponizej trzyma
+        # wartosc startowa - pelny efekt po restarcie workera (requiresRestart).
+        interval_ms = await settings_catalog.effective("pollingIntervalMs")
+        await asyncio.sleep(interval_ms / 1000)
 
 
 def start_polling() -> None:

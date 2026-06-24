@@ -25,6 +25,7 @@ from app.core.config import settings
 from app.core.email import DEFAULT_FROM, EmailConfigError, EmailSendError, normalize_email
 from app.core.logging import create_logger, to_iso_string
 from app.core.stripe_client import get_client
+from app.modules.admin.services import settings_catalog
 from app.modules.billing.models import CancellationReason
 from app.modules.billing.services import magic_link
 from app.modules.billing.services.subscriptions import (
@@ -162,7 +163,8 @@ async def request_cancellation(*, email: str | None, reason: str | None) -> dict
         payload["reason"] = reason
     token = magic_link.sign_token(payload, secret)
 
-    frontend = settings.FRONTEND_URL or DEFAULT_FRONTEND_URL
+    # Efektywne wartosci (DB > env > default). Sciezka async, wiec await.
+    frontend = await settings_catalog.effective("frontendUrl") or DEFAULT_FRONTEND_URL
     confirm_url = f"{frontend}/anuluj/potwierdz?token={quote(token, safe='')}"
 
     try:
@@ -170,7 +172,7 @@ async def request_cancellation(*, email: str | None, reason: str | None) -> dict
             to=email,
             subject=EMAIL_SUBJECT,
             html=build_email_html(confirm_url),
-            from_email=settings.CANCELLATION_FROM_EMAIL or DEFAULT_FROM,
+            from_email=await settings_catalog.effective("cancellationFromEmail") or DEFAULT_FROM,
             reply_to=EMAIL_REPLY_TO,
         )
     except (EmailConfigError, EmailSendError) as err:

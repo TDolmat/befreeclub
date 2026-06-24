@@ -33,6 +33,7 @@ from app.core.config import settings
 from app.core.email import normalize_email
 from app.core.logging import create_logger
 from app.core.stripe_client import StripeAccount, get_client, is_configured
+from app.modules.admin.services.settings import get_effective, get_setting
 from app.modules.billing.services import plans as plans_service
 from app.modules.billing.services.checkout import INTERVAL_MONTHS
 from app.modules.billing.services.klarna_grant import (
@@ -41,6 +42,9 @@ from app.modules.billing.services.klarna_grant import (
 )
 
 log = create_logger("workers.reconcile")
+
+SETTINGS_KEY = "members.klarna_reconcile"
+INTERVAL_KEY = "members.klarna_reconcile_interval_ms"
 
 # Okno sweepa 1:1 z oryginalem: Klarna potrafi potwierdzac dniami.
 LOOKBACK_SECONDS = 7 * 24 * 60 * 60
@@ -200,6 +204,13 @@ async def _tick() -> None:
     if _lock.locked():
         log.debug("previous run still in progress, skipping tick")
         return
+    # BRAMKA (admin.settings `members.klarna_reconcile`): tick automatyczny
+    # rusza tylko gdy enabled=true. Brak wpisu / enabled=false = bezpieczny
+    # default (nic). Reconcile nadaje dostep (nie usuwa), wiec domyslnie off.
+    cfg = await get_setting(SETTINGS_KEY)
+    if not cfg.get("enabled", False):
+        log.debug("klarna_reconcile disabled in admin.settings, skipping tick")
+        return
     if not is_configured(StripeAccount.CURRENT):
         log.debug("Stripe current not configured, skipping tick")
         return
@@ -207,23 +218,33 @@ async def _tick() -> None:
         await run_reconcile()
 
 
+async def _interval_seconds() -> float:
+    """Interwal pollingu: admin.settings nadpisuje env (czytane raz przy
+    starcie petli, zmiana wymaga restartu workera)."""
+    ms = await get_effective(
+        INTERVAL_KEY,
+        env_fallback=settings.KLARNA_RECONCILE_INTERVAL_MS,
+        safe_default=settings.KLARNA_RECONCILE_INTERVAL_MS,
+    )
+    return int(ms) / 1000
+
+
 async def _loop() -> None:
+    interval = await _interval_seconds()
     while True:
         try:
             await _tick()
         except Exception as err:
             # Blad przebiegu nie moze zabic workera.
             log.error(f"tick failed: {err}")
-        await asyncio.sleep(settings.KLARNA_RECONCILE_INTERVAL_MS / 1000)
+        await asyncio.sleep(interval)
 
 
 def start_klarna_reconcile_worker() -> None:
     global _task
     if _task:
         return
-    log.info(
-        f"Starting klarna_reconcile worker (interval {settings.KLARNA_RECONCILE_INTERVAL_MS}ms)"
-    )
+    log.info("Starting klarna_reconcile worker")
     _task = asyncio.create_task(_loop())
 
 

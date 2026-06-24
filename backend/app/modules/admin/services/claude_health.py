@@ -50,7 +50,7 @@ async def _check_binary() -> dict:
 async def _check_credentials() -> dict:
     cred_path = Path.home() / ".claude" / ".credentials.json"
     if not cred_path.exists():
-        return {"ok": False, "detail": "credentials file missing — run `claude login`"}
+        return {"ok": False, "detail": "credentials file missing - run `claude login`"}
     try:
         size = cred_path.stat().st_size
     except OSError as err:

@@ -47,7 +47,6 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.email import normalize_email
 from app.core.logging import create_logger
 from app.core.stripe_client import (
@@ -57,6 +56,7 @@ from app.core.stripe_client import (
     request_options,
     search_customers_by_email,
 )
+from app.modules.admin.services import settings_catalog
 from app.modules.billing.models import CheckoutAttribution
 from app.modules.billing.schemas import AttributionIn
 from app.modules.billing.services import attribution as attribution_service
@@ -507,7 +507,7 @@ async def create_klarna_session(
         if promo is not None:
             promotion_code_id = promo.id
 
-    base_url = origin or settings.FRONTEND_URL or DEFAULT_ORIGIN
+    base_url = origin or await settings_catalog.effective("frontendUrl") or DEFAULT_ORIGIN
     # source=klarna_checkout to dyskryminator dla webhooka/reconcile (1:1);
     # kopia metadata w payment_intent_data + utm (kontrakt 5.1).
     metadata = {

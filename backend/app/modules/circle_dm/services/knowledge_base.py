@@ -17,9 +17,9 @@ import time
 from pypdf import PdfReader
 from sqlalchemy import and_, or_, select
 
-from app.core.config import settings
 from app.core.db import async_session_maker
 from app.core.logging import create_logger
+from app.modules.admin.services import settings_catalog
 from app.modules.circle_dm.models import KbDocument
 
 log = create_logger("kb")
@@ -90,6 +90,9 @@ async def build_kb_block(account_id: int) -> str:
         _cache[account_id] = ("", time.time() * 1000)
         return ""
 
+    # DB nadpisuje env; brak ustawien = dotychczasowa wartosc env. Czytane per uzycie
+    # (bez restartu), wiec efektywny limit odczytujemy raz na build.
+    hard_ceiling = await settings_catalog.effective("kbHardCeilingTokens")
     parts: list[str] = []
     used_tokens = 0
     truncated = False
@@ -97,7 +100,7 @@ async def build_kb_block(account_id: int) -> str:
         body = row.body_text.strip()
         if not body:
             continue
-        if used_tokens + row.token_estimate > settings.KB_HARD_CEILING_TOKENS:
+        if used_tokens + row.token_estimate > hard_ceiling:
             truncated = True
             break
         used_tokens += row.token_estimate
@@ -157,11 +160,13 @@ async def get_kb_capacity(account_id: int | None) -> dict:
         else:
             account_tokens += r.token_estimate
     total_tokens = global_tokens + account_tokens
+    budget = await settings_catalog.effective("kbBudgetTokens")
+    hard_ceiling = await settings_catalog.effective("kbHardCeilingTokens")
     return {
         "globalTokens": global_tokens,
         "accountTokens": account_tokens,
         "totalTokens": total_tokens,
-        "budget": settings.KB_BUDGET_TOKENS,
-        "hardCeiling": settings.KB_HARD_CEILING_TOKENS,
-        "overBudget": total_tokens > settings.KB_BUDGET_TOKENS,
+        "budget": budget,
+        "hardCeiling": hard_ceiling,
+        "overBudget": total_tokens > budget,
     }

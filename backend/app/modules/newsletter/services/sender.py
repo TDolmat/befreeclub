@@ -16,6 +16,7 @@ import httpx
 from app.core.config import settings
 from app.core.dev_mode import resolve_mock
 from app.core.logging import create_logger
+from app.modules.admin.services import secrets, settings_catalog
 
 log = create_logger("newsletter:sender")
 
@@ -25,7 +26,10 @@ TIMEOUT_SECONDS = 10.0
 
 
 def api_token() -> str:
-    raw = (settings.SENDER_API_TOKEN or "").strip()
+    # Efektywny token (DB > env > ""). Sync accessor czyta procesowy cache
+    # sekretow; zimny cache = env fallback. Jeden punkt -> is_mocked/
+    # is_configured/push lapia wartosc z panelu po jej ustawieniu.
+    raw = (secrets.resolve_sync("sender.api_token", env_fallback=True) or "").strip()
     return re.sub(r"^Bearer\s+", "", raw, flags=re.IGNORECASE)
 
 
@@ -40,7 +44,9 @@ def is_configured() -> bool:
 
 
 def group_ids() -> list[str]:
-    raw = settings.SENDER_GROUP_IDS or DEFAULT_GROUP_IDS_CSV
+    # Efektywna wartosc (DB > env > default). Sync accessor czyta procesowy cache
+    # ustawien; zimny cache = env fallback (zachowanie 1:1). Czytane per push.
+    raw = settings_catalog.effective_sync("senderGroupIds") or DEFAULT_GROUP_IDS_CSV
     return [part.strip() for part in raw.split(",") if part.strip()]
 
 

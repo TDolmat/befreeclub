@@ -24,12 +24,18 @@ import httpx
 from app.core.config import settings
 from app.core.dev_mode import resolve_mock
 from app.core.logging import create_logger
+from app.modules.admin.services import secrets
 
 log = create_logger("email")
 
 RESEND_API_URL = "https://api.resend.com/emails"
 DEFAULT_FROM = "Be Free Club <noreply@befreeclub.pl>"
 TIMEOUT_SECONDS = 10.0
+
+
+def _resend_key() -> str | None:
+    """Klucz Resend: panel (DB) nadpisuje env RESEND_API_KEY."""
+    return secrets.resolve_sync("resend.api_key", env_fallback=True)
 
 # backend/.dev-outbox/ (gitignore) - mocki dev pisza tu maile.
 OUTBOX_DIR = Path(__file__).resolve().parents[2] / ".dev-outbox"
@@ -55,12 +61,12 @@ class EmailSendError(Exception):
 
 def is_mocked() -> bool:
     """Tryb mock dev: pliki w .dev-outbox/ zamiast requestow do Resend."""
-    return resolve_mock(settings.MOCK_EMAIL, settings.RESEND_API_KEY is not None)
+    return resolve_mock(settings.MOCK_EMAIL, _resend_key() is not None)
 
 
 def is_configured() -> bool:
     """Czy maile da sie wysylac: prawdziwy klucz ALBO mock dev."""
-    return settings.RESEND_API_KEY is not None or is_mocked()
+    return _resend_key() is not None or is_mocked()
 
 
 def _slugify_subject(subject: str) -> str:
@@ -119,7 +125,8 @@ async def send_email(
 
     if is_mocked():
         return _write_to_outbox(payload)
-    if settings.RESEND_API_KEY is None:
+    api_key = _resend_key()
+    if api_key is None:
         raise EmailConfigError("RESEND_API_KEY is not configured")
 
     try:
@@ -127,7 +134,7 @@ async def send_email(
             response = await client.post(
                 RESEND_API_URL,
                 json=payload,
-                headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+                headers={"Authorization": f"Bearer {api_key}"},
             )
     except httpx.HTTPError as err:
         raise EmailSendError(f"Resend request failed: {err}") from err

@@ -30,10 +30,10 @@ from sqlalchemy import or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.db import async_session_maker
 from app.core.email import EmailConfigError, EmailSendError, normalize_email, send_email
 from app.core.logging import create_logger
+from app.modules.admin.services import settings_catalog
 from app.modules.billing.models import EbookDownloadToken, EbookOrder
 
 log = create_logger("billing:ebook")
@@ -67,7 +67,8 @@ def _email_html(download_url: str) -> str:
 
 
 def download_url_for(token: str) -> str:
-    base = settings.FRONTEND_URL or FRONTEND_URL_DEFAULT
+    # Sync accessor (DB > env > default); zimny cache = env fallback (1:1).
+    base = settings_catalog.effective_sync("frontendUrl") or FRONTEND_URL_DEFAULT
     return f"{base}/ebook/pobierz?token={token}"
 
 
@@ -416,8 +417,8 @@ async def _consume(session: AsyncSession, token: str) -> ConsumedDownload:
         raise DownloadTokenError(429, "Limit pobrań wyczerpany. Napisz na krystian@befreeclub.pl.")
 
     # Jak oryginal: najpierw dostepnosc pliku (signed URL), licznik dopiero
-    # po sukcesie - blad pliku nie zuzywa pobrania.
-    file_path = settings.EBOOK_FILE_PATH
+    # po sukcesie - blad pliku nie zuzywa pobrania. Sciezka async -> await.
+    file_path = await settings_catalog.effective("ebookFilePath")
     if not file_path or not Path(file_path).is_file():
         log.error(f"EBOOK_FILE_PATH missing or not a file: {file_path!r}")
         raise DownloadTokenError(500, "Plik tymczasowo niedostępny. Spróbuj za chwilę.")

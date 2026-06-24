@@ -17,8 +17,8 @@ from typing import Any
 
 import httpx
 
-from app.core.config import settings
 from app.core.logging import create_logger
+from app.modules.admin.services import secrets, settings_catalog
 
 log = create_logger("meta-capi")
 
@@ -48,8 +48,20 @@ class CapiCustomData:
     content_name: str | None = None  # np. slug planu / "ebook"
 
 
+def _pixel_id() -> str | None:
+    """Efektywny Pixel ID (DB > env > brak). Niesekretny - sync accessor czyta
+    procesowy cache ustawien; zimny cache = env fallback (1:1)."""
+    return settings_catalog.effective_sync("metaPixelId")
+
+
+def _capi_token() -> str | None:
+    """Efektywny token CAPI (panel > env > brak). Sekret - czyta procesowy cache
+    store sekretow, zimny cache schodzi na env (1:1)."""
+    return secrets.resolve_sync("meta.capi_token", env_fallback=True)
+
+
 def is_configured() -> bool:
-    return settings.META_CAPI_TOKEN is not None and settings.META_PIXEL_ID is not None
+    return _capi_token() is not None and _pixel_id() is not None
 
 
 def _build_event(
@@ -124,8 +136,8 @@ async def send_event(
         event_source_url=event_source_url,
         action_source=action_source,
     )
-    url = f"{META_API_BASE}/{META_API_VERSION}/{settings.META_PIXEL_ID}/events"
-    payload = {"data": [event], "access_token": settings.META_CAPI_TOKEN}
+    url = f"{META_API_BASE}/{META_API_VERSION}/{_pixel_id()}/events"
+    payload = {"data": [event], "access_token": _capi_token()}
 
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:

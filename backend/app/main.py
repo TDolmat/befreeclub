@@ -25,8 +25,10 @@ from app.core.dev_mode import log_startup_mode
 from app.core.logging import create_logger
 from app.core.ws import broker
 from app.modules.admin.routes import auth as auth_routes
+from app.modules.admin.routes import connections as connections_routes
 from app.modules.admin.routes import feedback as feedback_routes
 from app.modules.admin.routes import health as health_routes
+from app.modules.admin.routes import settings as admin_settings_routes
 from app.modules.admin.services.auth import require_auth
 from app.modules.admin.services.sessions import purge_expired_sessions
 from app.modules.billing.routes import admin as billing_admin
@@ -156,6 +158,13 @@ async def lifespan(app: FastAPI):
     # members) + status Meta CAPI. Na prod nic sie nie mockuje.
     log_startup_mode()
 
+    # Ogrzej cache edytowalnych sekretow (panel) zanim wstana workery: w trybie
+    # panel-only-bez-env sync konsumenci po restarcie widzieliby zimny cache i
+    # schodzili na puste env. warm_cache laduje klucze z DB raz na starcie.
+    from app.modules.admin.services import secrets as admin_secrets
+
+    await admin_secrets.warm_cache()
+
     start_polling()
     start_voice_transcript_worker()
     start_image_description_worker()
@@ -271,6 +280,14 @@ def create_app() -> FastAPI:
     app.include_router(members_admin.router, prefix="/api/members", dependencies=protected)
     # One-off sync circle_member_id ([workers]): POST /api/members/sync-circle-ids.
     app.include_router(members_maintenance.router, prefix="/api/members", dependencies=protected)
+    # Centralna sekcja Ustawienia: GET wszystkich knobow + PUT per grupa.
+    app.include_router(
+        admin_settings_routes.router, prefix="/api/admin/settings", dependencies=protected
+    )
+    # Status polaczen z zewnetrznymi API (status-only, BEZ sekretow).
+    app.include_router(
+        connections_routes.router, prefix="/api/admin/connections", dependencies=protected
+    )
 
     @app.websocket("/ws")
     async def ws_endpoint(websocket: WebSocket) -> None:

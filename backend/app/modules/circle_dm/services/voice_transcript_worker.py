@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.core.db import async_session_maker
 from app.core.logging import create_logger
 from app.core.ws import broker
+from app.modules.admin.services import secrets, settings_catalog
 from app.modules.circle_dm.circle.attachments import extract_attachments
 from app.modules.circle_dm.models import Message
 from app.modules.circle_dm.services.openai_stt import (
@@ -37,7 +38,7 @@ async def _tick() -> None:
     global _running
     if _running:
         return
-    if not settings.OPENAI_API_KEY:
+    if not secrets.resolve_sync("openai.api_key", env_fallback=True):
         return
     _running = True
     try:
@@ -146,16 +147,17 @@ async def _transcribe_one(
 async def _loop() -> None:
     while True:
         await _tick()
-        await asyncio.sleep(settings.VOICE_TRANSCRIPT_INTERVAL_MS / 1000)
+        interval_ms = await settings_catalog.effective("voiceTranscriptIntervalMs")
+        await asyncio.sleep(interval_ms / 1000)
 
 
 def start_voice_transcript_worker() -> None:
     global _task
     if _task:
         return
-    if not settings.OPENAI_API_KEY:
-        log.warn("OPENAI_API_KEY not set — voice transcripts disabled")
-        return
+    # Worker startuje zawsze. Guard w _tick decyduje per tick przez resolve_sync,
+    # dzieki czemu klucz ustawiony w panelu dziala bez restartu (a brak klucza =
+    # tick no-op, bez palenia zasobow).
     log.info(
         f"Starting voice transcript worker (interval {settings.VOICE_TRANSCRIPT_INTERVAL_MS}ms)"
     )

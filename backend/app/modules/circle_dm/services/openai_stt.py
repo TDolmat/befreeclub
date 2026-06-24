@@ -9,8 +9,8 @@ import math
 
 import httpx
 
-from app.core.config import settings
 from app.core.logging import create_logger
+from app.modules.admin.services import secrets, settings_catalog
 
 log = create_logger("stt")
 
@@ -64,7 +64,8 @@ async def transcribe_audio_from_url(
     `language`: default "pl" (twardy hint jak w TS, worker nie podaje wlasnego);
     None = pole pominiete (autodetekcja); string = przekazany dalej.
     """
-    if not settings.OPENAI_API_KEY:
+    api_key = secrets.resolve_sync("openai.api_key", env_fallback=True)
+    if not api_key:
         raise SttConfigError("OPENAI_API_KEY not set")
 
     # Podpisane URL-e Active Storage Circle sa publicznie pobieralne - bez auth.
@@ -87,8 +88,9 @@ async def transcribe_audio_from_url(
     fname = filename if filename is not None else _guess_filename(ct_header)
     content_type = ct_header if ct_header is not None else "application/octet-stream"
 
+    model = await settings_catalog.effective("openaiWhisperModel")
     data: dict[str, str] = {
-        "model": settings.OPENAI_WHISPER_MODEL,
+        "model": model,
         "response_format": "verbose_json",
     }
     if language:
@@ -98,7 +100,7 @@ async def transcribe_audio_from_url(
         async with httpx.AsyncClient(timeout=OPENAI_TIMEOUT_S) as client:
             stt_res = await client.post(
                 OPENAI_URL,
-                headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"},
+                headers={"Authorization": f"Bearer {api_key}"},
                 files={"file": (fname, buf, content_type)},
                 data=data,
             )

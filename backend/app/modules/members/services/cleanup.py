@@ -68,6 +68,8 @@ class CleanupDecision:
 class CleanupResult:
     checked: int
     removed: int
+    would_remove: int = 0
+    dry_run: bool = False
     decisions: list[CleanupDecision] = field(default_factory=list)
 
 
@@ -129,16 +131,25 @@ async def _decide(member: Member, now: datetime) -> tuple[str, bool]:
     return "subscription_dead", True
 
 
-async def run_cleanup() -> CleanupResult:
+async def run_cleanup(*, dry_run: bool = False) -> CleanupResult:
     """Przebieg cleanupu: iteracja po active/paused/pending_removal,
     usuniecie z Circle + status removed dla wygaslych/martwych.
 
     Rzuca CleanupConfigError PRZED przetworzeniem kogokolwiek, gdy brakuje
-    ktoregos klucza Stripe albo konfiguracji Circle (jak oryginal)."""
+    ktoregos klucza Stripe albo konfiguracji Circle (jak oryginal) - guard
+    obowiazuje takze w trybie cienia (dry_run czyta Stripe przez _decide).
+
+    dry_run=True (TRYB CIENIA): przechodzi CALA logike (sync z DB, _decide
+    pytajace Stripe/Circle o stan), loguje KOGO by usunieto i ile zostaje,
+    ale NIE woła circle.remove i NIE zmienia statusu czlonka (nikt nie wpada
+    w removed, zero eventow). Sluzy do podgladu skutkow przed wlaczeniem
+    realnego usuwania. Pole would_remove = ile wierszy zostaloby usunietych."""
     _require_config()
     now = datetime.now(UTC)
     decisions: list[CleanupDecision] = []
     removed_count = 0
+    would_remove_count = 0
+    mode = "dry_run" if dry_run else "live"
 
     async with async_session_maker() as session:
         members = list(
@@ -150,13 +161,20 @@ async def run_cleanup() -> CleanupResult:
             .scalars()
             .all()
         )
-        log.info(f"Checking {len(members)} members")
+        log.info(f"Checking {len(members)} members (mode={mode})")
 
         for member in members:
             decision, should_remove = await _decide(member, now)
             removed = False
 
             if should_remove:
+                would_remove_count += 1
+
+            if should_remove and dry_run:
+                # TRYB CIENIA: logika przeszla, decyzja "usun" zapadla, ale
+                # NIE ruszamy Circle ani statusu - tylko log do podgladu.
+                log.info(f"[dry-run] would remove {member.email}: {decision}")
+            elif should_remove:
                 if not member.circle_member_id:
                     # 1:1 z oryginalem: bez ID nie ma jak usunac - wiersz
                     # zostaje, sync-circle-ids uzupelni ID.
@@ -179,9 +197,10 @@ async def run_cleanup() -> CleanupResult:
                 # Commit per czlonek: czesciowy postep zostaje jak w oryginale
                 # (UPDATE leciał od razu po kazdym DELETE).
                 await session.commit()
-            elif should_remove:
+            elif should_remove and not dry_run:
                 # Proba usuniecia bez skutku (brak circle_member_id /
                 # nieudany DELETE) - to zostaje w events, bo wymaga uwagi.
+                # W trybie cienia NIE zapisujemy eventow (zero sladu w DB).
                 record_event(session, member.id, "cleanup_decision", {"decision": decision})
                 await session.commit()
             # Czyste decyzje keep ida tylko do loggera (review 2.1 - bez
@@ -194,5 +213,15 @@ async def run_cleanup() -> CleanupResult:
                 )
             )
 
-    log.info(f"Done. Removed {removed_count} members.")
-    return CleanupResult(checked=len(decisions), removed=removed_count, decisions=decisions)
+    keep_count = len(decisions) - would_remove_count
+    log.info(
+        f"Done (mode={mode}). Checked {len(decisions)}, keep {keep_count}, "
+        f"wouldRemove {would_remove_count}, removed {removed_count}."
+    )
+    return CleanupResult(
+        checked=len(decisions),
+        removed=removed_count,
+        would_remove=would_remove_count,
+        dry_run=dry_run,
+        decisions=decisions,
+    )

@@ -38,6 +38,7 @@ from app.core.stripe_client import (
     request_options,
     search_customers_by_email,
 )
+from app.modules.admin.services import settings_catalog
 from app.modules.billing.services import magic_link
 from app.modules.billing.services.subscriptions import obj_get
 
@@ -197,7 +198,8 @@ async def request_link(*, email: str | None, raise_on_send_error: bool = False) 
         {"email": email, "exp": int(time.time() * 1000) + TOKEN_TTL_MS, "purpose": TOKEN_PURPOSE},
         secret,
     )
-    frontend = settings.FRONTEND_URL or DEFAULT_FRONTEND_URL
+    # Efektywne wartosci (DB > env > default). Sciezka async, wiec await.
+    frontend = await settings_catalog.effective("frontendUrl") or DEFAULT_FRONTEND_URL
     update_url = f"{frontend}/aktualizuj-karte?token={quote(token, safe='')}"
 
     try:
@@ -205,7 +207,7 @@ async def request_link(*, email: str | None, raise_on_send_error: bool = False) 
             to=email,
             subject=EMAIL_SUBJECT,
             html=build_email_html(update_url),
-            from_email=settings.CANCELLATION_FROM_EMAIL or DEFAULT_FROM,
+            from_email=await settings_catalog.effective("cancellationFromEmail") or DEFAULT_FROM,
             reply_to=EMAIL_REPLY_TO,
         )
     except (EmailConfigError, EmailSendError) as err:

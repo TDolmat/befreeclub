@@ -5,7 +5,7 @@
 #
 # Build context = root monorepo (compose: context .., dockerfile infra/frontend-admin.Dockerfile).
 
-FROM node:22-bookworm-slim AS builder
+FROM node:24-bookworm-slim AS builder
 
 RUN corepack enable
 

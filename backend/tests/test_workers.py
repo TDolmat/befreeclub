@@ -87,11 +87,13 @@ def list_page(data, has_more=False):
 async def test_trigger_membership_cleanup_calls_service(client, monkeypatch):
     calls = []
 
-    async def fake_run_cleanup():
-        calls.append(1)
+    async def fake_run_cleanup(*, dry_run=False):
+        calls.append(dry_run)
         return CleanupResult(
             checked=3,
             removed=1,
+            would_remove=1,
+            dry_run=dry_run,
             decisions=[
                 CleanupDecision(
                     member_id=7, email="a@x.pl", decision="subscription_dead", removed=True
@@ -99,20 +101,61 @@ async def test_trigger_membership_cleanup_calls_service(client, monkeypatch):
             ],
         )
 
+    # admin.settings mockowane (suite bez DB): reczny trigger ignoruje `enabled`,
+    # ale czyta dryRun. Tu dryRun=false -> realny przebieg.
+    async def fake_get_setting(key):
+        return {"enabled": True, "dryRun": False}
+
+    async def fake_set_setting(key, value, user_id):
+        return value
+
     monkeypatch.setattr(cleanup_worker, "run_cleanup", fake_run_cleanup)
+    monkeypatch.setattr(cleanup_worker, "get_setting", fake_get_setting)
+    monkeypatch.setattr(cleanup_worker, "set_setting", fake_set_setting)
 
     response = await client.post("/api/billing/admin/workers/membership_cleanup/run")
 
     assert response.status_code == 200
-    assert calls == [1]
+    assert calls == [False]  # dryRun=false z ustawien -> realny przebieg
     assert response.json() == {
         "success": True,
         "checked": 3,
         "removed": 1,
+        "wouldRemove": 1,
+        "dryRun": False,
         "decisions": [
             {"memberId": 7, "email": "a@x.pl", "decision": "subscription_dead", "removed": True}
         ],
     }
+
+
+async def test_trigger_membership_cleanup_honors_dry_run_from_settings(client, monkeypatch):
+    """Reczny trigger NIE patrzy na enabled, ale dryRun z ustawien obowiazuje:
+    enabled=false + dryRun=true -> przebieg w trybie cienia (zero usuniec)."""
+    calls = []
+
+    async def fake_run_cleanup(*, dry_run=False):
+        calls.append(dry_run)
+        return CleanupResult(checked=2, removed=0, would_remove=1, dry_run=dry_run)
+
+    async def fake_get_setting(key):
+        return {"enabled": False, "dryRun": True}
+
+    async def fake_set_setting(key, value, user_id):
+        return value
+
+    monkeypatch.setattr(cleanup_worker, "run_cleanup", fake_run_cleanup)
+    monkeypatch.setattr(cleanup_worker, "get_setting", fake_get_setting)
+    monkeypatch.setattr(cleanup_worker, "set_setting", fake_set_setting)
+
+    response = await client.post("/api/billing/admin/workers/membership_cleanup/run")
+
+    assert response.status_code == 200
+    assert calls == [True]  # dryRun=true mimo enabled=false (trigger to akcja czlowieka)
+    body = response.json()
+    assert body["dryRun"] is True
+    assert body["removed"] == 0
+    assert body["wouldRemove"] == 1
 
 
 async def test_trigger_invite_retry(client, monkeypatch):

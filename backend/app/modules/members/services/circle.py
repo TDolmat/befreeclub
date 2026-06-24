@@ -31,6 +31,7 @@ from app.core.config import settings
 from app.core.dev_mode import resolve_mock
 from app.core.email import normalize_email
 from app.core.logging import create_logger
+from app.modules.admin.services import settings_catalog
 
 log = create_logger("members.circle")
 
@@ -69,8 +70,14 @@ def reset_mock_state() -> None:
     _mock_state["next_id"] = _MOCK_FIRST_ID
 
 
+def _community_id() -> str | None:
+    """Efektywne community id (DB > env > brak). Niesekretne - sync accessor
+    czyta procesowy cache ustawien; zimny cache = env fallback (1:1)."""
+    return settings_catalog.effective_sync("circleCommunityId")
+
+
 def _has_credentials() -> bool:
-    return bool(settings.CIRCLE_API_TOKEN) and bool(settings.CIRCLE_COMMUNITY_ID)
+    return bool(settings.CIRCLE_API_TOKEN) and bool(_community_id())
 
 
 def is_mocked() -> bool:
@@ -85,7 +92,7 @@ def is_configured() -> bool:
 
 def _credentials() -> tuple[str, str]:
     token = settings.CIRCLE_API_TOKEN
-    community_id = settings.CIRCLE_COMMUNITY_ID
+    community_id = _community_id()
     if not token or not community_id:
         raise CircleConfigError("CIRCLE_API_TOKEN or CIRCLE_COMMUNITY_ID not set")
     return token, community_id

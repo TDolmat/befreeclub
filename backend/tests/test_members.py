@@ -645,6 +645,168 @@ async def test_cleanup_ignores_removed_and_invite_failed(maker, circle_configure
     assert result.checked == 0
 
 
+# ── bramka cleanupu (dry-run / admin.settings) ───────────────────────────────
+#
+# KRYTYCZNE pod katem bezpieczenstwa: swiezy deploy (admin.settings z domyslnym
+# enabled=false, dryRun=true) NIKOGO nie usuwa, nawet z kompletem kluczy. Realne
+# usuniecie tylko po jawnym enabled=true + dryRun=false.
+
+
+@pytest.fixture
+async def settings_db(maker, monkeypatch):
+    """Dokłada tabele admin.settings do bazy testowej members + kieruje na nia
+    serwis ustawien i workera cleanupu. Swieza baza = ZERO wierszy w settings
+    (brak wpisu = SAFE_DEFAULTS: enabled=false, dryRun=true)."""
+    from app.modules.admin.models import Setting, User
+    from app.modules.admin.services import settings as settings_svc
+    from app.modules.members.services import cleanup_worker
+
+    engine = create_async_engine(_dsn(TEST_DB_NAME), poolclass=NullPool)
+    async with engine.begin() as conn:
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS admin"))
+        # users tworzymy bo settings.updated_by_user_id ma do niej FK
+        # (set_setting zapisuje NULL, ale FK musi istniec przy CREATE TABLE).
+        await conn.run_sync(
+            lambda sync_conn: Base.metadata.create_all(
+                sync_conn, tables=[User.__table__, Setting.__table__]
+            )
+        )
+        await conn.execute(text("TRUNCATE admin.settings"))
+    session_maker = async_sessionmaker(engine, expire_on_commit=False)
+    # Serwis ustawien trzyma wlasny async_session_maker (get_setting/set_setting);
+    # worker cleanupu czyta przez ten serwis, wiec wystarczy podmiana tu.
+    monkeypatch.setattr(settings_svc, "async_session_maker", session_maker)
+    settings_svc.invalidate_cache()
+    yield {"svc": settings_svc, "worker": cleanup_worker, "maker": session_maker}
+    settings_svc.invalidate_cache()
+    await engine.dispose()
+
+
+@respx.mock
+async def test_cleanup_dry_run_removes_nobody_with_full_keys(maker, circle_configured, live_access):
+    """run_cleanup(dry_run=True) z kompletem kluczy: CALA logika przechodzi
+    (would_remove liczy ofiary), ale circle.remove NIE jest wolany, statusy
+    bez zmian, zero eventow."""
+    delete_route = respx.delete(url__startswith=MEMBERS_URL).mock(
+        return_value=httpx.Response(200, json={})
+    )
+    expired = await add_member(
+        maker, email="exp@x.pl", status="active", source="one_time",
+        circle_member_id="7", expires_at=_past(),
+    )
+    dead = await add_member(
+        maker, email="dead@x.pl", status="active", source="subscription", circle_member_id="8"
+    )
+
+    result = await cleanup.run_cleanup(dry_run=True)
+
+    assert result.dry_run is True
+    assert result.checked == 2
+    assert result.removed == 0
+    assert result.would_remove == 2
+    # KRYTYCZNE: zero realnych DELETE do Circle.
+    assert delete_route.call_count == 0
+    # Statusy nietkniete, brak eventu removed/cleanup_decision.
+    assert (await get_member(maker, expired.id)).status == "active"
+    assert (await get_member(maker, dead.id)).status == "active"
+    assert await get_events(maker, expired.id) == []
+    assert await get_events(maker, dead.id) == []
+
+
+@respx.mock
+async def test_cleanup_live_removes_when_dry_run_off(maker, circle_configured, live_access):
+    """run_cleanup(dry_run=False): realne usuniecie sie wykonuje (circle.remove
+    zawolany, status removed)."""
+    delete_route = respx.delete(url__startswith=MEMBERS_URL).mock(
+        return_value=httpx.Response(200, json={})
+    )
+    dead = await add_member(
+        maker, email="dead@x.pl", status="active", source="subscription", circle_member_id="8"
+    )
+
+    result = await cleanup.run_cleanup(dry_run=False)
+
+    assert result.dry_run is False
+    assert result.removed == 1
+    assert result.would_remove == 1
+    assert delete_route.call_count == 1
+    assert (await get_member(maker, dead.id)).status == "removed"
+
+
+@respx.mock
+async def test_worker_fresh_deploy_default_disabled_no_run(
+    settings_db, maker, circle_configured, live_access
+):
+    """SWIEZA baza (zero wierszy admin.settings) = enabled=false (SAFE_DEFAULTS):
+    automatyczny tick workera NIE rusza cleanupu, nawet z kompletem kluczy."""
+    delete_route = respx.delete(url__startswith=MEMBERS_URL).mock(
+        return_value=httpx.Response(200, json={})
+    )
+    worker = settings_db["worker"]
+    member = await add_member(
+        maker, email="dead@x.pl", status="active", source="subscription", circle_member_id="8"
+    )
+
+    await worker._tick()
+
+    # enabled=false (brak wiersza) -> tick pominiety: zero DELETE, status bez zmian,
+    # zaden przebieg sie nie odpalil (brak wpisu last_run).
+    assert delete_route.call_count == 0
+    assert (await get_member(maker, member.id)).status == "active"
+    last_run = await settings_db["svc"].get_setting("members.cleanup.last_run")
+    assert "value" not in last_run  # brak wiersza = SAFE_DEFAULTS, nie przebieg
+
+
+@respx.mock
+async def test_worker_enabled_dry_run_removes_nobody(
+    settings_db, maker, circle_configured, live_access
+):
+    """enabled=true + dryRun=true (tryb cienia): tick PRZECHODZI logike, ale
+    nikogo nie usuwa. Zapisuje metadane ostatniego przebiegu do panelu."""
+    delete_route = respx.delete(url__startswith=MEMBERS_URL).mock(
+        return_value=httpx.Response(200, json={})
+    )
+    svc = settings_db["svc"]
+    worker = settings_db["worker"]
+    await svc.set_setting("members.cleanup", {"enabled": True, "dryRun": True}, None)
+    member = await add_member(
+        maker, email="dead@x.pl", status="active", source="subscription", circle_member_id="8"
+    )
+
+    await worker._tick()
+
+    assert delete_route.call_count == 0
+    assert (await get_member(maker, member.id)).status == "active"
+    # last_run zapisany w trybie cienia.
+    last_run = await svc.get_setting("members.cleanup.last_run")
+    assert last_run["value"]["mode"] == "dry_run"
+    assert last_run["value"]["wouldRemove"] == 1
+    assert last_run["value"]["removed"] == 0
+
+
+@respx.mock
+async def test_worker_enabled_live_removes(settings_db, maker, circle_configured, live_access):
+    """enabled=true + dryRun=false: tick realnie usuwa (DELETE do Circle,
+    status removed). last_run w trybie live."""
+    delete_route = respx.delete(url__startswith=MEMBERS_URL).mock(
+        return_value=httpx.Response(200, json={})
+    )
+    svc = settings_db["svc"]
+    worker = settings_db["worker"]
+    await svc.set_setting("members.cleanup", {"enabled": True, "dryRun": False}, None)
+    member = await add_member(
+        maker, email="dead@x.pl", status="active", source="subscription", circle_member_id="8"
+    )
+
+    await worker._tick()
+
+    assert delete_route.call_count == 1
+    assert (await get_member(maker, member.id)).status == "removed"
+    last_run = await svc.get_setting("members.cleanup.last_run")
+    assert last_run["value"]["mode"] == "live"
+    assert last_run["value"]["removed"] == 1
+
+
 # ── retry_failed_invites ─────────────────────────────────────────────────────
 
 

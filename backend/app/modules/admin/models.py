@@ -6,9 +6,10 @@ Kolumny/typy/defaulty 1:1 z docs/spec/db-schema.md.
 """
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Text, UniqueConstraint, text
-from sqlalchemy.dialects.postgresql import ENUM
+from sqlalchemy.dialects.postgresql import ENUM, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -88,4 +89,61 @@ class FeedbackItem(Base):
     # Trigger set_feedback_items_updated_at.
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class Setting(Base):
+    """Generyczny key/value store ustawien panelu admina (migracja 0003).
+
+    key = identyfikator bloku ustawien (np. 'members.cleanup'), value = JSONB.
+    Trigger set_settings_updated_at aktualizuje updated_at przy UPDATE.
+    Semantyka kluczy i kontrakt API: docs/spec-landing/cleanup-controls.md.
+    """
+
+    __tablename__ = "settings"
+    __table_args__ = ({"schema": "admin"},)
+
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    value: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    # Trigger set_settings_updated_at.
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_by_user_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey(
+            "admin.users.id",
+            ondelete="SET NULL",
+            name="settings_updated_by_user_id_fk",
+        ),
+        nullable=True,
+    )
+
+
+class EncryptedSecret(Base):
+    """Edytowalne sekrety integracji zaszyfrowane Fernetem (migracja 0004).
+
+    key = store_key sekretu (np. 'openai.api_key'), ciphertext = token Fernet.
+    Wartosc jawna NIGDY nie trafia tu ani do logow - tylko ciphertext.
+    Trigger set_encrypted_secrets_updated_at aktualizuje updated_at przy UPDATE.
+    Audyt: updated_by_user_id (admin.users.id).
+    """
+
+    __tablename__ = "encrypted_secrets"
+    __table_args__ = ({"schema": "admin"},)
+
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    ciphertext: Mapped[str] = mapped_column(Text, nullable=False)
+    # Trigger set_encrypted_secrets_updated_at.
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    updated_by_user_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey(
+            "admin.users.id",
+            ondelete="SET NULL",
+            name="encrypted_secrets_updated_by_user_id_fk",
+        ),
+        nullable=True,
     )

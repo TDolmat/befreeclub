@@ -38,6 +38,7 @@ from app.core.email import (
 )
 from app.core.logging import create_logger
 from app.core.schemas import dump
+from app.modules.admin.services import settings_catalog
 from app.modules.admin.services.auth import require_auth
 from app.modules.admin.services.rate_limit import client_ip, is_locked, record_failure
 from app.modules.newsletter.models import ContactMessage
@@ -98,7 +99,8 @@ async def subscribe(payload: SubscribeIn, request: Request) -> dict:
     token = doi.sign_token(
         {"email": email, "name": name, "exp": exp}, settings.NEWSLETTER_DOI_SECRET
     )
-    confirm_base = settings.CONFIRM_URL_BASE or DEFAULT_CONFIRM_URL_BASE
+    # Efektywne wartosci (DB > env > default). Route async -> await.
+    confirm_base = await settings_catalog.effective("confirmUrlBase") or DEFAULT_CONFIRM_URL_BASE
     confirm_url = f"{confirm_base}?token={quote(token, safe='')}"
     attempt_id = str(uuid.uuid4())
     sent_at = doi.sent_at_label()
@@ -108,7 +110,8 @@ async def subscribe(payload: SubscribeIn, request: Request) -> dict:
             to=email,
             subject=f"{name} potwierdź swój zapis - nowy link {sent_at}",
             html=doi.build_confirm_email_html(name, confirm_url, sent_at),
-            from_email=settings.NEWSLETTER_FROM_EMAIL or DEFAULT_NEWSLETTER_FROM,
+            from_email=await settings_catalog.effective("newsletterFromEmail")
+            or DEFAULT_NEWSLETTER_FROM,
             reply_to=NEWSLETTER_REPLY_TO,
             headers={"X-Entity-Ref-ID": attempt_id},
         )
@@ -154,7 +157,8 @@ async def confirm(payload: ConfirmIn, request: Request) -> dict:
             client_ip=_capi_client_ip(request),
             client_ua=request.headers.get("user-agent"),
         ),
-        event_source_url=settings.FRONTEND_URL or "https://befreeclub.pl",
+        event_source_url=await settings_catalog.effective("frontendUrl")
+        or "https://befreeclub.pl",
     )
 
     return {"ok": True, "name": name, "eventId": event_id}

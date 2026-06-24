@@ -20,6 +20,7 @@ _EMPTY_AS_NONE_FIELDS = (
     "BOOTSTRAP_ADMIN_EMAIL",
     "BOOTSTRAP_ADMIN_TOKEN",
     "WEB_DIST_PATH",
+    "SECRETS_MASTER_KEY",
     "OPENAI_API_KEY",
     # Faza 2 (landing) - wszystkie opcjonalne, pusty string = brak.
     "STRIPE_SECRET_KEY",
@@ -78,6 +79,11 @@ class Settings(BaseSettings):
     BOOTSTRAP_ADMIN_EMAIL: str | None = None
     BOOTSTRAP_ADMIN_TOKEN: str | None = None
     WEB_DIST_PATH: str | None = None
+
+    # Klucz master Fernet do szyfrowania edytowalnych sekretow integracji
+    # (admin.encrypted_secrets). 44-znakowy klucz url-safe base64. Brak/zly klucz =
+    # bezpieczny fallback na env, nigdy crash (patrz app/core/secret_box.py).
+    SECRETS_MASTER_KEY: str | None = None
 
     OPENAI_API_KEY: str | None = None
     OPENAI_WHISPER_MODEL: str = "whisper-1"

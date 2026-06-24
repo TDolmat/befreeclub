@@ -13,10 +13,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl git \
     && rm -rf /var/lib/apt/lists/*
 
-# Node 22 WYLACZNIE dla Claude Code CLI. Binarka node + npm kopiowane
+# Node 24 (LTS) WYLACZNIE dla Claude Code CLI. Binarka node + npm kopiowane
 # z oficjalnego obrazu (ta sama baza: Debian bookworm), bez apt/nodesource.
-COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
-COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY --from=node:24-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:24-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
     && npm install -g @anthropic-ai/claude-code
