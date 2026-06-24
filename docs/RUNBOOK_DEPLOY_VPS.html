@@ -331,7 +331,7 @@ cp backend/.env.production.example backend/.env
 <span class="cmt"># Wygeneruj mocne hasło Postgresa</span>
 openssl rand -hex 24        <span class="cmt"># skopiuj wynik</span>
 <span class="cmt"># Master key do szyfrowania edytowalnych kluczy API w panelu (NOWY na prod, nie z dev)</span>
-docker run --rm python:3.12-slim sh -c 'pip -q install cryptography &amp;&amp; python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
+openssl rand -base64 32 | tr '+/' '-_'     <span class="cmt"># 44-znakowy klucz Fernet - skopiuj wynik</span>
 nano backend/.env</code></pre>
 <p>W <code>backend/.env</code> ustaw <b>na fazę 1</b> tylko to:</p>
 <table>
@@ -339,7 +339,7 @@ nano backend/.env</code></pre>
 <tr><td><code>DB_PASS</code></td><td>wynik <code>openssl rand -hex 24</code></td></tr>
 <tr><td><code>BOOTSTRAP_ADMIN_TOKEN</code></td><td>Twój Circle Headless token. <b>Wymagany</b>, żeby Circle DM mintował JWT i gadał z Circle.</td></tr>
 <tr><td><code>OPENAI_API_KEY</code></td><td>opcjonalnie - włącza transkrypcje głosówek i opisy zdjęć. Puste = te funkcje wyłączone, reszta działa.</td></tr>
-<tr><td><code>SECRETS_MASTER_KEY</code></td><td>wynik komendy <code>Fernet.generate_key()</code> powyżej (44 znaki). Szyfruje klucze API edytowalne w panelu (Połączenia API). Linia jest już w <code>.env.production.example</code>, tylko ją wypełnij. Puste = edycja kluczy w panelu wyłączona (cichy fallback na env, nie crash).</td></tr>
+<tr><td><code>SECRETS_MASTER_KEY</code></td><td>wynik komendy <code>openssl rand -base64 32 | tr ...</code> powyżej (44 znaki). Szyfruje klucze API edytowalne w panelu (Połączenia API). Linia jest już w <code>.env.production.example</code>, tylko ją wypełnij. Puste = edycja kluczy w panelu wyłączona (cichy fallback na env, nie crash).</td></tr>
 </table>
 <p>Wszystkie zmienne fazy 2 (<code>STRIPE_*</code>, <code>RESEND_*</code>, <code>CIRCLE_*</code>, <code>SENDER_*</code>, <code>META_*</code>) <b>zostaw puste</b> - landing migrujemy później, a backend startuje z nimi pustymi bez błędu.</p>
 <pre><code><span class="cmt"># Symlink, żeby compose widział DB_PASS przy interpolacji</span>
