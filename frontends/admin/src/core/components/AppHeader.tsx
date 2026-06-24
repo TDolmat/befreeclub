@@ -1,7 +1,8 @@
-import { LayoutGrid } from 'lucide-react';
+import { Button } from '@/core/components/ui/button';
+import { FeedbackButton } from '@/core/feedback/FeedbackButton';
+import { LayoutGrid, Settings } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { FeedbackButton } from '@/core/feedback/FeedbackButton';
 
 export function AppHeader({
   subNav,
@@ -27,6 +28,11 @@ export function AppHeader({
 
         <div className="flex items-center gap-2">
           {subNav && <nav className="flex items-center gap-2">{subNav}</nav>}
+          <Link to="/ustawienia">
+            <Button variant="ghost" size="icon" title="Ustawienia">
+              <Settings className="h-4 w-4" />
+            </Button>
+          </Link>
           <FeedbackButton />
           {rightExtras}
         </div>

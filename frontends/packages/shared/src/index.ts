@@ -9,4 +9,5 @@ export * from './schemas/compose.js';
 export * from './schemas/kb.js';
 export * from './schemas/assistant.js';
 export * from './schemas/feedback.js';
+export * from './schemas/settings.js';
 export * from './voice.js';

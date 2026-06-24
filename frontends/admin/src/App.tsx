@@ -1,8 +1,9 @@
+import { useAuth } from '@/core/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { useAuth } from '@/core/hooks/useAuth';
 import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { DmRoutes } from './tools/circle-dm/routes';
 
 export function App() {
@@ -23,6 +24,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<DashboardPage />} />
+      <Route path="/ustawienia/*" element={<SettingsPage />} />
       <Route path="/circle-dm/*" element={<DmRoutes />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

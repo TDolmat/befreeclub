@@ -13,7 +13,7 @@ export function cn(...inputs: ClassValue[]) {
 export function foldText(s: string): string {
   return s
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/\p{Mn}/gu, '')
     .replace(/ł/g, 'l')
     .replace(/Ł/g, 'l')
     .toLowerCase()

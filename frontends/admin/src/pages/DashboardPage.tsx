@@ -1,7 +1,13 @@
-import { Link } from 'react-router-dom';
-import { MessageSquare, ArrowRight } from 'lucide-react';
 import { AppHeader } from '@/core/components/AppHeader';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/core/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/core/components/ui/card';
+import { ArrowRight, MessageSquare, Settings } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 type Tool = {
   slug: string;
@@ -18,6 +24,13 @@ const tools: Tool[] = [
     title: 'Circle DM',
     description: 'Inbox, drafty AI, bulk i compose pod kontem admina Circle.',
     icon: MessageSquare,
+  },
+  {
+    slug: 'settings',
+    to: '/ustawienia',
+    title: 'Ustawienia',
+    description: 'Workery członkostw, AI, billing, newsletter, analityka i status połączeń API.',
+    icon: Settings,
   },
 ];
 
