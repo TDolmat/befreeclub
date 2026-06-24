@@ -5,11 +5,17 @@ Jak odpalić cały stack na Macu. Backend FastAPI na :3000, admin front (Vite) n
 ## Wymagania
 
 - **uv** (Python 3.12+): `brew install uv`
-- **pnpm** (Node 20+): `brew install pnpm`
+- **Node 24** (Active LTS) - wersja przypięta w repo w `.node-version` / `.nvmrc`, ta sama na dev i prod (obrazy Docker też na 24). Nie polegaj na tym, co masz globalnie. Użyj menadżera wersji, który to czyta, i w katalogu repo ustaw właściwą:
+  - `fnm` (polecany, `brew install fnm`) -> `fnm use`
+  - `nvm` -> `nvm use`
+  - `n` -> `n auto`
+- **pnpm**: nie instalujesz globalnie. Włącz **corepack** (jest w Node): `corepack enable`. pnpm sam się provisionuje w wersji z `package.json` (`packageManager: pnpm@11.1.0`), identycznej u każdego.
 - **Postgres.app**: lokalny Postgres, user systemowy (`tomasz`), peer auth bez hasła
 - **Stripe CLI** (do webhooków): `brew install stripe/stripe-cli/stripe`
 
 ## Pierwszy setup
+
+Skrót: task VS Code **Setup (pierwszy raz)** robi kroki 1, 3 i 4 jednym kliknięciem. Ręcznie:
 
 ```bash
 # 1. Baza dev
@@ -30,16 +36,22 @@ pnpm install
 
 ## Odpalanie
 
-Najprościej z VS Code: `Cmd+Shift+P` -> "Tasks: Run Task":
+Taski są w repo (`.vscode/tasks.json`), więc każdy kto sklonuje ma je od razu. Na co dzień klikasz **jeden**. `Cmd+Shift+B` (domyślny) albo `Cmd+Shift+P` -> "Tasks: Run Task":
 
-- **Run All (dev)** - backend + admin front równolegle, każdy w swoim panelu
-- **Run All (dev + Stripe)** - jak wyżej, plus `stripe listen`
-- Pojedyncze taski: backend, front, migracje, testy, lint
+- **▶ Admin (backend + front)** - to jest TEN task. Backend + admin front równolegle, każdy w swoim panelu. Front nigdy nie chodzi bez backendu, więc jeden klik odpala oba. Backend sam odpala migracje przed serwerem (jak Docker), po `git pull` nie migrujesz ręcznie.
+- **Stripe webhooki (gdy testujesz płatności)** - odpalasz DODATKOWO, obok Admina, tylko gdy dłubiesz w płatnościach. Tunel Stripe -> localhost, żeby webhooki dochodziły lokalnie. Poza płatnościami nie potrzebny.
+- **Setup (pierwszy raz)** - createdb + uv sync + migracje + pnpm install jednym kliknięciem.
+
+- **DB: reset dev** - wywala bazę dev i stawia od zera (czyste schematy + seedy, zero danych). Gdy chcesz czysty stan.
+
+Klocki "Backend" i "Admin front" są na liście, ale sam ich nie klikasz - używa ich task "▶ Admin". Migracje, testy i lint robisz z terminala (komendy niżej), nie zaśmiecają listy tasków.
+
+Konwencja na przyszłość: gdy dojdzie landing (faza 2.4), dorzuca się analogiczny task **▶ Landing (backend + front)** - jeden serwis = jeden task odpalający backend + jego front równolegle.
 
 Albo ręcznie:
 
 ```bash
-cd backend && uv run uvicorn app.main:app --port 3000 --reload
+cd backend && uv run alembic upgrade head && uv run uvicorn app.main:app --port 3000 --reload
 cd frontends && pnpm dev
 ```
 
@@ -70,6 +82,16 @@ Testowanie:
 - Karta testowa: `4242 4242 4242 4242`, dowolna przyszła data, dowolny CVC. Inne scenariusze (odrzucenia, 3DS) w docs Stripe: "test cards".
 - Sztuczny event do webhooka: `stripe trigger payment_intent.succeeded` (działa przy włączonym `stripe listen`).
 
+## Co działa od razu, a co wymaga sandbox kluczy
+
+**Bez żadnych kluczy zewnętrznych stack wstaje i działa.** Maile, Sender i Circle members są zamockowane automatycznie (patrz niżej), a sekrety DOI są pre-wypełnione dev-wartościami w `.env.example`. Czyli `cp .env.example .env` + `createdb` + start = panel admina, ustawienia, newsletter, anulowania chodzą lokalnie.
+
+Realnych (sandbox) kluczy potrzebujesz tylko gdy chcesz testować konkretną integrację:
+
+- **Stripe** (płatności, webhooki): klucz **test mode** `sk_test_...` + `whsec_...` z `stripe listen` (sekcja niżej). Nigdy nie mockowany.
+- **OpenAI** (opcjonalnie): głosówki/zdjęcia w Circle DM. Puste = te funkcje wyłączone.
+- **Circle DM** (drafty): realny token Circle, ale operujesz WYŁĄCZNIE na kontach testowych.
+
 ## Co jest mockowane lokalnie
 
 Sterują tym flagi `MOCK_*` w `backend/.env` (w dev auto-włączone, szczegóły w `.env.example`):
@@ -97,4 +119,12 @@ Migracje po zmianie modeli:
 cd backend
 uv run alembic revision --autogenerate -m "opis"
 uv run alembic upgrade head
+```
+
+## Testy i lint
+
+```bash
+cd backend && uv run pytest tests/ -q       # testy backendu
+cd backend && uv run ruff check .           # lint backendu
+cd frontends && pnpm typecheck && pnpm lint # front
 ```

@@ -1,10 +1,26 @@
 {
+  // Taski są w repo - kto sklonuje, ma je od razu.
+  // Na co dzień klikasz JEDEN: "▶ Admin (backend + front)".
+  // Reszta to klocki (używa ich task wyżej) i rzeczy okazjonalne.
+  // Gdy dojdzie landing (faza 2.4): dorzuć "▶ Landing (backend + front)".
   "version": "2.0.0",
   "tasks": [
     {
+      // TEN klikasz codziennie (Cmd+Shift+B). Backend + front równolegle.
+      "label": "▶ Admin (backend + front)",
+      "dependsOn": ["Backend (FastAPI :3000)", "Admin front (Vite :5173)"],
+      "dependsOrder": "parallel",
+      "group": { "kind": "build", "isDefault": true },
+      "icon": { "id": "run-all", "color": "terminal.ansiGreen" },
+      "problemMatcher": []
+    },
+
+    // ── Klocki: pojedyncze serwisy. Sam nie klikasz, używa ich task wyżej. ──
+    {
+      // Migracje lecą przed serwerem (jak Docker), więc nie migrujesz ręcznie.
       "label": "Backend (FastAPI :3000)",
       "type": "shell",
-      "command": "uv run uvicorn app.main:app --port 3000 --reload",
+      "command": "uv run alembic upgrade head && uv run uvicorn app.main:app --port 3000 --reload",
       "options": { "cwd": "${workspaceFolder}/backend" },
       "icon": { "id": "server-process", "color": "terminal.ansiGreen" },
       "presentation": { "panel": "dedicated", "reveal": "always" },
@@ -19,8 +35,12 @@
       "presentation": { "panel": "dedicated", "reveal": "always" },
       "problemMatcher": []
     },
+
+    // ── Okazjonalne ─────────────────────────────────────────────────────────
     {
-      "label": "Stripe webhooki (CLI listen)",
+      // Odpalasz DODATKOWO, obok Admina, TYLKO gdy testujesz płatności.
+      // Tunel Stripe -> localhost, żeby webhooki dochodziły lokalnie.
+      "label": "Stripe webhooki (gdy testujesz płatności)",
       "type": "shell",
       "command": "stripe listen --forward-to localhost:3000/api/billing/webhooks/stripe/current",
       "icon": { "id": "credit-card", "color": "terminal.ansiCyan" },
@@ -28,54 +48,23 @@
       "problemMatcher": []
     },
     {
-      "label": "DB: migracje (alembic upgrade head)",
+      // Raz, po sklonowaniu: baza + zależności + migracje.
+      "label": "Setup (pierwszy raz)",
       "type": "shell",
-      "command": "uv run alembic upgrade head",
-      "options": { "cwd": "${workspaceFolder}/backend" },
-      "icon": { "id": "database", "color": "terminal.ansiYellow" },
+      "command": "createdb befreeclub 2>/dev/null || true && (cd backend && uv sync && uv run alembic upgrade head) && (cd frontends && pnpm install)",
+      "options": { "cwd": "${workspaceFolder}" },
+      "icon": { "id": "tools", "color": "terminal.ansiYellow" },
       "presentation": { "panel": "dedicated", "reveal": "always" },
       "problemMatcher": []
     },
     {
-      "label": "Testy: backend (pytest)",
+      // Wywala bazę dev i stawia od zera (czyste schematy + seedy, zero danych).
+      "label": "DB: reset dev",
       "type": "shell",
-      "command": "uv run pytest tests/ -q",
-      "options": { "cwd": "${workspaceFolder}/backend" },
-      "icon": { "id": "beaker", "color": "terminal.ansiBlue" },
+      "command": "dropdb --if-exists befreeclub && createdb befreeclub && cd backend && uv run alembic upgrade head",
+      "options": { "cwd": "${workspaceFolder}" },
+      "icon": { "id": "trash", "color": "terminal.ansiRed" },
       "presentation": { "panel": "dedicated", "reveal": "always" },
-      "problemMatcher": []
-    },
-    {
-      "label": "Lint: backend (ruff)",
-      "type": "shell",
-      "command": "uv run ruff check .",
-      "options": { "cwd": "${workspaceFolder}/backend" },
-      "icon": { "id": "checklist", "color": "terminal.ansiRed" },
-      "presentation": { "panel": "dedicated", "reveal": "always" },
-      "problemMatcher": []
-    },
-    {
-      "label": "Typecheck+lint: front (pnpm)",
-      "type": "shell",
-      "command": "pnpm typecheck && pnpm lint",
-      "options": { "cwd": "${workspaceFolder}/frontends" },
-      "icon": { "id": "checklist", "color": "terminal.ansiMagenta" },
-      "presentation": { "panel": "dedicated", "reveal": "always" },
-      "problemMatcher": []
-    },
-
-    {
-      "label": "Run All (dev)",
-      "dependsOn": ["Backend (FastAPI :3000)", "Admin front (Vite :5173)"],
-      "dependsOrder": "parallel",
-      "icon": { "id": "run-all", "color": "terminal.ansiGreen" },
-      "problemMatcher": []
-    },
-    {
-      "label": "Run All (dev + Stripe)",
-      "dependsOn": ["Backend (FastAPI :3000)", "Admin front (Vite :5173)", "Stripe webhooki (CLI listen)"],
-      "dependsOrder": "parallel",
-      "icon": { "id": "run-all", "color": "terminal.ansiCyan" },
       "problemMatcher": []
     }
   ]

@@ -73,6 +73,19 @@ Crony przechodzą do backendu jako workery (jak polling w circle_dm): cleanup cz
 - Zasada sekretów: klucze API zostają w env na VPS (nie w DB). W ustawieniach trzymamy: które połączenie jest aktywne, parametry niesekretne (community ID, grupy Sender, progi, modele AI, maile nadawcze), przełączniki funkcji. Panel pokazuje obecność sekretu ("ustawiony w env") bez wartości.
 - Architektura: jedna tabela `admin.settings` (klucz per moduł, JSONB, wersjonowanie zmian) + rejestr definicji w kodzie modułów. Sekcja Circle DM migruje do tego mechanizmu, stary endpoint zostaje jako alias do czasu aktualizacji frontu.
 
+> **ZROBIONE (faza 2.2).** Centralna sekcja Ustawienia działa. Mechanizm: tabela
+> `admin.settings` (key/value JSONB, migracja 0003) + serwis `admin/services/settings.py`
+> (cache 30 s, `get_effective` z regułą DB > env > bezpieczny default; `SAFE_DEFAULTS`
+> = nic destrukcyjnego nie startuje samo) + katalog knobów `settings_catalog.py`
+> (TUNABLE/TOGGLE, walidacja → 400). API: `GET/PUT /api/admin/settings`,
+> `GET /api/admin/connections` (status-only, sekretów nigdy nie zwraca; test-call
+> read-only, tryb mock dev), `POST /api/admin/connections/{key}/test`. Front:
+> `frontends/admin` `/ustawienia` (5 sekcji), prompty/modele Circle DM linkowane do
+> `/circle-dm/settings` (jedno źródło prawdy, bez duplikacji). Bezpieczeństwo: świeży
+> deploy nikogo nie usuwa - cleanup `enabled=false`, `dryRun=true`; włączenie realnego
+> usuwania za potwierdzeniem w UI; ręczny trigger respektuje `dryRun`. Pełny katalog
+> wszystkich knobów: `docs/spec-landing/ustawienia-katalog.md`.
+
 ### Frontend landinga
 
 Rekomendacja: **kopiujemy obecny React SPA do `frontends/landing/`** (jak admin w fazie 1), serwowany osobnym kontenerem nginx. Zmiany ograniczone do: treść z API zamiast hardcode (ceny, opinie, FAQ, artykuły, flagi), wywołania edge functions zamienione na `/api/billing/*` itd., sprzątnięcie hardcoded refów Supabase i kluczy.

@@ -96,7 +96,7 @@
   <a href="#zanim">Zanim zaczniesz</a>
   <a class="sec">Serwer</a>
   <a href="#k1">1. Pierwsze logowanie</a>
-  <a href="#k2">2. User bez roota</a>
+  <a href="#k2">2. Klucz SSH na ubuntu</a>
   <a href="#k3">3. Hardening + firewall</a>
   <a href="#k4">4. Docker</a>
   <a href="#k5">5. Caddy na hoście</a>
@@ -113,6 +113,8 @@
   <a href="#backup">Backupy</a>
   <a href="#rollback">Rollback</a>
   <a href="#sciaga">Ściąga komend</a>
+  <a class="sec">Dodatek</a>
+  <a href="#ssl">Jak działa SSL</a>
 </nav>
 <main>
 
@@ -142,7 +144,7 @@
 
 <h2 id="zanim"><span class="n">ii</span>Zanim zaczniesz - co miej pod ręką</h2>
 <ul class="ck" id="ck-prep">
-<li><input type="checkbox"><span><b>IP nowego VPS</b> + hasło root (albo klucz SSH ustawiony przy zamówieniu OVH). To <code>NOWE_IP</code>.</span></li>
+<li><input type="checkbox"><span><b>IP nowego VPS</b> + hasło usera <code>ubuntu</code> (OVH daje gotowego usera <code>ubuntu</code> z sudo, nie roota). To <code>NOWE_IP</code>.</span></li>
 <li><input type="checkbox"><span><b>Dostęp SSH do starego VPS</b> (do dumpa danych). To <code>STARE_IP</code> + Twój user.</span></li>
 <li><input type="checkbox"><span><b>Twój klucz SSH</b> na Macu (<code>~/.ssh/id_ed25519.pub</code>). Jak nie masz: <code>ssh-keygen -t ed25519</code>.</span></li>
 <li><input type="checkbox"><span><b>Dostęp do DNS w Hostinger</b> (domena <code>befreeclub.pro</code>, rekord A dla <code>admin</code>).</span></li>
@@ -157,30 +159,39 @@
 
 <h2 id="k1"><span class="n">1</span>Pierwsze logowanie i podstawy</h2>
 <div class="host mac">NA MACU</div>
-<pre><code><span class="cmt"># Pierwsze wejście jako root (z hasłem od OVH albo kluczem)</span>
-ssh root@NOWE_IP</code></pre>
+<pre><code><span class="cmt"># Pierwsze wejście jako ubuntu (hasło od OVH)</span>
+ssh ubuntu@NOWE_IP</code></pre>
 <div class="host new">NOWY VPS</div>
 <pre><code><span class="cmt"># Aktualizacja systemu, strefa czasu, nazwa hosta</span>
-apt update &amp;&amp; apt -y upgrade
-timedatectl set-timezone Europe/Warsaw
-hostnamectl set-hostname bfc-prod
+sudo apt update &amp;&amp; sudo apt -y upgrade
+sudo timedatectl set-timezone Europe/Warsaw
+sudo hostnamectl set-hostname bfc-prod
 <span class="cmt"># Narzędzia, których użyjemy dalej</span>
-apt -y install ufw fail2ban git curl ca-certificates postgresql-client</code></pre>
+sudo apt -y install ufw fail2ban git curl ca-certificates postgresql-client</code></pre>
 
-<h2 id="k2"><span class="n">2</span>User bez roota + klucz SSH</h2>
-<p>Nie pracujemy na roocie. Tworzymy usera <code>tomek</code> z sudo i wgrywamy do niego Twój klucz.</p>
-<div class="host new">NOWY VPS</div>
-<pre><code>adduser tomek            <span class="cmt"># ustaw hasło, resztę pól Enter</span>
-usermod -aG sudo tomek</code></pre>
+<h2 id="k2"><span class="n">2</span>Klucz SSH na userze ubuntu</h2>
+<p>OVH dało Ci gotowego usera <code>ubuntu</code> z sudo, więc nie tworzymy nowego. Wgrywamy tylko do niego Twój klucz, żebyś z własnego Maca logował się bez hasła. Hasło do <code>ubuntu</code> zostaje aktywne jako awaryjny dostęp z innego komputera (krok 3).</p>
 <div class="host mac">NA MACU</div>
-<pre><code><span class="cmt"># Skopiuj swój klucz publiczny na nowego usera</span>
-ssh-copy-id tomek@NOWE_IP
-<span class="cmt"># Sprawdź, że wchodzisz bez hasła</span>
-ssh tomek@NOWE_IP</code></pre>
-<div class="box tip"><div class="t">Wskazówka</div>Od teraz loguj się tylko jako <code>tomek</code>. Roota użyjesz przez <code>sudo</code>.</div>
+<pre><code><span class="cmt"># Skopiuj swój klucz publiczny na usera ubuntu (zapyta raz o hasło od OVH)</span>
+ssh-copy-id ubuntu@NOWE_IP
+<span class="cmt"># Sprawdź, że z Twojego Maca wchodzi już bez hasła (kluczem)</span>
+ssh ubuntu@NOWE_IP</code></pre>
+<div class="box tip"><div class="t">Wskazówka</div>Ze swojego Maca logujesz się jako <code>ubuntu</code> kluczem, bez hasła. Roota używasz przez <code>sudo</code>. Hasła <code>ubuntu</code> użyjesz tylko awaryjnie z obcego kompa.</div>
+<h3>Skrót: logowanie po nazwie zamiast IP</h3>
+<p>Żeby z Maca wpisywać <code>ssh ubuntu@bfc-prod</code> zamiast wklepywać IP, dodaj alias w swoim <code>~/.ssh/config</code>. To tylko u Ciebie, nie wymaga żadnego DNS-u ani rekordu A.</p>
+<div class="host mac">NA MACU</div>
+<pre><code><span class="cmt"># Podmień NOWE_IP na realne IP serwera przed wklejeniem</span>
+cat &gt;&gt; ~/.ssh/config &lt;&lt;'EOF'
+Host bfc-prod
+    HostName NOWE_IP
+    User ubuntu
+EOF
+<span class="cmt"># Od teraz działa forma user@nazwa (dowolny user przed małpą):</span>
+ssh ubuntu@bfc-prod</code></pre>
+<div class="box tip"><div class="t">Jak to działa</div>SSH dopasowuje blok po nazwie <code>bfc-prod</code> - część przed <code>@</code> to user i nie wpływa na dopasowanie. Dlatego <code>ssh ubuntu@bfc-prod</code> i samo <code>ssh bfc-prod</code> robią to samo (linia <code>User ubuntu</code> to tylko domyślny user, gdy nie podasz nic przed <code>@</code>). Alias łapią też <code>scp</code> i <code>rsync</code>: <code>scp plik.dump ubuntu@bfc-prod:~/</code>. W dalszych krokach runbooka możesz <code>ubuntu@NOWE_IP</code> zastępować <code>ubuntu@bfc-prod</code>.</div>
 
 <h2 id="k3"><span class="n">3</span>Hardening SSH + firewall</h2>
-<p>Trzy rzeczy: wyłączamy logowanie roota i hasłem (tylko klucz), zapora przepuszcza tylko SSH/HTTP/HTTPS, fail2ban banuje próby zgadywania.</p>
+<p>Trzy rzeczy: blokujemy logowanie roota przez SSH (ale hasło dla <code>ubuntu</code> zostaje jako awaryjny dostęp z obcego kompa), zapora przepuszcza tylko SSH/HTTP/HTTPS, fail2ban banuje próby zgadywania hasła.</p>
 <div class="host new">NOWY VPS</div>
 <pre><code><span class="cmt"># Firewall - najpierw przepuść SSH, potem włącz (inaczej się zablokujesz)</span>
 sudo ufw allow OpenSSH
@@ -188,16 +199,17 @@ sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 sudo ufw enable
 sudo ufw status</code></pre>
-<pre><code><span class="cmt"># Hardening SSH: dopisz na końcu pliku konfiguracji</span>
+<pre><code><span class="cmt"># Hardening SSH: root nie loguje się przez SSH, hasło zostaje jako awaryjny dostęp dla ubuntu</span>
 sudo tee /etc/ssh/sshd_config.d/10-bfc.conf &gt; /dev/null &lt;&lt;'EOF'
 PermitRootLogin no
-PasswordAuthentication no
+PasswordAuthentication yes
 PubkeyAuthentication yes
 EOF
 sudo systemctl restart ssh</code></pre>
+<div class="box info"><div class="t">Czemu nazwa 10-bfc.conf</div>Obrazy OVH/cloud-init często wrzucają własny <code>50-cloud-init.conf</code>, który potrafi ustawiać <code>PasswordAuthentication</code>. SSH bierze pierwszą napotkaną wartość, a pliki w <code>sshd_config.d</code> czyta alfabetycznie - <code>10-</code> wygrywa z <code>50-</code>, więc Twoje <code>yes</code> jest na wierzchu. Sprawdź po restarcie: <code>sudo sshd -T | grep -i passwordauthentication</code> ma pokazać <code>yes</code>.</div>
 <div class="box warn">
   <div class="t">Zanim zamkniesz terminal</div>
-  Otwórz <b>drugą</b> sesję <code>ssh tomek@NOWE_IP</code> i sprawdź, że wchodzi. Jak działa - dopiero wtedy zamykaj pierwszą. Inaczej przy błędzie w configu zostajesz na zewnątrz.
+  Otwórz <b>drugą</b> sesję <code>ssh ubuntu@NOWE_IP</code> i sprawdź, że wchodzi. Jak działa - dopiero wtedy zamykaj pierwszą. Błąd w configu może wywalić restart sshd i wtedy nie wejdziesz żadną metodą. Awaryjnie zawsze masz konsolę KVM w panelu OVH.
 </div>
 <pre><code><span class="cmt"># fail2ban - domyślny jail SSH wystarcza, włącz i zostaw</span>
 sudo systemctl enable --now fail2ban
@@ -209,12 +221,12 @@ sudo dpkg-reconfigure -plow unattended-upgrades</code></pre>
 <div class="host new">NOWY VPS</div>
 <pre><code><span class="cmt"># Oficjalny skrypt instalacyjny Dockera</span>
 curl -fsSL https://get.docker.com | sudo sh
-<span class="cmt"># Pozwól userowi tomek używać dockera bez sudo</span>
-sudo usermod -aG docker tomek
+<span class="cmt"># Pozwól userowi ubuntu używać dockera bez sudo</span>
+sudo usermod -aG docker ubuntu
 <span class="cmt"># Przeloguj sesję, żeby grupa zadziałała</span>
 exit</code></pre>
 <div class="host mac">NA MACU</div>
-<pre><code>ssh tomek@NOWE_IP
+<pre><code>ssh ubuntu@NOWE_IP
 docker run --rm hello-world      <span class="cmt"># test: działa bez sudo?</span></code></pre>
 <div class="host new">NOWY VPS</div>
 <pre><code><span class="cmt"># Wspólna sieć, przez którą Caddy widzi backend i front</span>
@@ -260,34 +272,61 @@ docker compose ps</code></pre>
   Repo zawiera pliki <code>.env</code> z sekretami i <code>.venv</code> / <code>node_modules</code>. <b>Nie mogą</b> trafić do gita. Upewnij się, że root <code>.gitignore</code> wyklucza: <code>.env</code>, <code>*.env</code> (poza <code>*.example</code>), <code>.venv/</code>, <code>node_modules/</code>, <code>data/</code>, <code>.dev-outbox/</code>, <code>__pycache__/</code>.
 </div>
 
+<h3>6a. Commit i push na GitHub (Mac)</h3>
+<p>Załóż na GitHubie <b>puste prywatne</b> repo (np. <code>befreeclub</code>, bez README, żeby nie było konfliktu przy pierwszym pushu). Potem zrób z katalogu repo i wypchnij - commitujemy i pushujemy jako Ty.</p>
 <div class="host mac">NA MACU</div>
 <pre><code>cd ~/repos/befreeclub/migracja/befreeclub
-<span class="cmt"># Init repo i pierwszy commit (zrób to Ty - commitujemy jako Ty)</span>
 git init
 git add -A
 git status            <span class="cmt"># SPRAWDŹ: żadnego .env na liście!</span>
-git commit -m "init befreeclub monorepo"</code></pre>
-<p>Załóż prywatne repo na GitHub (np. <code>befreeclub</code>) i wypchnij. Potem na serwerze tworzysz deploy key (klucz tylko do tego repo, read-only):</p>
+git commit -m "init befreeclub monorepo"
+<span class="cmt"># Podłącz puste repo z GitHuba i wypchnij (idzie dostępem Twojego Maca do GitHuba)</span>
+git remote add origin git@github.com:TWOJ_LOGIN/befreeclub.git
+git branch -M main
+git push -u origin main</code></pre>
+
+<h3>6b. Deploy key na serwerze</h3>
+<p>Serwer ma tylko <b>czytać</b> to jedno repo. Dlatego nie wrzucamy mu Twojego konta GitHub, tylko <b>deploy key</b>: parę kluczy SSH dającą dostęp do <b>jednego repo</b>, read-only. Jak kiedyś wycieknie, atakujący dostaje wgląd w to jedno repo, a nie w całe Twoje konto. Klucz prywatny zostaje na VPS, publiczny idzie na GitHub.</p>
 <div class="host new">NOWY VPS</div>
-<pre><code>ssh-keygen -t ed25519 -f ~/.ssh/befreeclub_deploy -N ""
-cat ~/.ssh/befreeclub_deploy.pub
-<span class="cmt"># ^ wklej w GitHub: repo > Settings > Deploy keys > Add (read-only)</span>
-cat &gt;&gt; ~/.ssh/config &lt;&lt;'EOF'
+<pre><code>ssh-keygen -t ed25519 -f ~/.ssh/befreeclub_deploy -N "" -C "bfc-prod deploy key"
+<span class="cmt"># -N "" = bez hasła do klucza, żeby git pull działał bez pytania (read-only na zamkniętym boxie = OK)</span>
+<span class="cmt"># Pokaż klucz PUBLICZNY do skopiowania (cała linia, z komentarzem na końcu):</span>
+cat ~/.ssh/befreeclub_deploy.pub</code></pre>
+<div class="box tip"><div class="t">Bez wyświetlania, prosto do schowka Maca</div>Zamiast <code>cat</code> na VPS-ie możesz wyciągnąć klucz wprost do schowka Maca - odpal <b>z Maca</b> (nie w sesji SSH): <code>ssh ubuntu@bfc-prod 'cat ~/.ssh/befreeclub_deploy.pub' | pbcopy</code>. Schowek VPS-a i tak Ci się nie przyda, bo wklejasz w przeglądarce na Macu.</div>
+
+<h3>6c. Wklej klucz publiczny na GitHub</h3>
+<p>Na GitHubie: Twoje repo <code>befreeclub</code> → <b>Settings</b> (ustawienia <i>repo</i>, nie konta) → w lewym menu, sekcja Security, <b>Deploy keys</b> → <b>Add deploy key</b>:</p>
+<ul>
+<li><b>Title</b>: np. <code>bfc-prod VPS</code> (dowolna etykieta).</li>
+<li><b>Key</b>: wklej całą linię klucza publicznego (od <code>ssh-ed25519</code> po komentarz na końcu).</li>
+<li><b>Allow write access</b>: <b>zostaw odznaczone</b>. Serwer tylko ciągnie kod, nigdy nie pushuje. Read-only.</li>
+<li><b>Add key</b>.</li>
+</ul>
+
+<h3>6d. Alias SSH, test, klon</h3>
+<p>Teraz mówisz SSH na VPS-ie, żeby do tego repo używał właśnie tego klucza. Alias <code>github-bfc</code> wskazuje na github.com, ale z konkretnym <code>IdentityFile</code>. <code>IdentitiesOnly yes</code> = próbuj tylko tym kluczem, nie podsuwaj innych (inaczej SSH potrafi przepalić limit prób, oferując po kolei wszystkie klucze).</p>
+<div class="host new">NOWY VPS</div>
+<pre><code>cat &gt;&gt; ~/.ssh/config &lt;&lt;'EOF'
 Host github-bfc
   HostName github.com
   User git
   IdentityFile ~/.ssh/befreeclub_deploy
   IdentitiesOnly yes
 EOF
-mkdir -p ~/repos/befreeclub &amp;&amp; cd ~/repos/befreeclub
+<span class="cmt"># Test PRZED klonem. Pierwszy raz potwierdź odcisk github.com wpisując 'yes'.</span>
+ssh -T git@github-bfc</code></pre>
+<div class="box info"><div class="t">Co ma się pokazać</div>Komunikat w stylu <code>Hi TWOJ_LOGIN/befreeclub! You've successfully authenticated, but GitHub does not provide shell access.</code> = sukces. Brak shell access jest normalny, GitHub tak zawsze odpowiada (nazwa repo w powitaniu potwierdza, że to deploy key przypięty do tego jednego repo). Odcisk ED25519, który akceptujesz (<code>SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU</code>), to prawdziwy klucz GitHuba - ten sam mechanizm sprawdzania tożsamości co przy SSL.</div>
+<pre><code><span class="cmt"># Adres używa github-bfc (alias), nie github.com - to kieruje ruch przez deploy key.</span>
+mkdir -p ~/apps &amp;&amp; cd ~/apps
 git clone git@github-bfc:TWOJ_LOGIN/befreeclub.git befreeclub
 cd befreeclub</code></pre>
-<div class="box info"><div class="t">Bez GitHuba (alternatywa)</div>Jak nie chcesz repo na GitHub, wgraj kod bezpośrednio: <code>rsync -av --exclude .venv --exclude node_modules --exclude '*.env' ~/repos/befreeclub/migracja/befreeclub/ tomek@NOWE_IP:~/repos/befreeclub/befreeclub/</code> z Maca. Aktualizacje robisz wtedy ponownym rsync zamiast <code>git pull</code>.</div>
+<p>Bo sklonowałeś aliasem, każdy późniejszy <code>git pull</code> z tego katalogu sam pójdzie tym samym kluczem. Nic więcej nie ustawiasz.</p>
+<div class="box info"><div class="t">Bez GitHuba (alternatywa)</div>Jak nie chcesz repo na GitHub, wgraj kod bezpośrednio: <code>rsync -av --exclude .venv --exclude node_modules --exclude '*.env' ~/repos/befreeclub/migracja/befreeclub/ ubuntu@NOWE_IP:~/apps/befreeclub/</code> z Maca. Aktualizacje robisz wtedy ponownym rsync zamiast <code>git pull</code>.</div>
 
 <h2 id="k7"><span class="n">7</span>Sekrety (.env)</h2>
 <p>Jeden plik sekretów: <code>backend/.env</code>. Compose czyta go i przez symlink <code>infra/.env</code> bierze <code>DB_PASS</code> do interpolacji.</p>
 <div class="host new">NOWY VPS</div>
-<pre><code>cd ~/repos/befreeclub/befreeclub
+<pre><code>cd ~/apps/befreeclub
 cp backend/.env.production.example backend/.env
 <span class="cmt"># Wygeneruj mocne hasło Postgresa</span>
 openssl rand -hex 24        <span class="cmt"># skopiuj wynik</span>
@@ -309,7 +348,7 @@ chmod 600 ../backend/.env</code></pre>
 
 <h2 id="k8"><span class="n">8</span>Start aplikacji + konta</h2>
 <div class="host new">NOWY VPS</div>
-<pre><code>cd ~/repos/befreeclub/befreeclub/infra
+<pre><code>cd ~/apps/befreeclub/infra
 docker compose up -d --build      <span class="cmt"># pierwszy build ~5 min</span>
 docker compose ps
 docker compose logs backend | tail -20</code></pre>
@@ -343,11 +382,11 @@ ls -lh ~/backups</code></pre>
 <div class="host mac">NA MACU</div>
 <pre><code><span class="cmt"># Pobierz dump ze starego i wyślij na nowy (przez Twój laptop)</span>
 scp STARE_IP:~/backups/bfc_admin_*.dump /tmp/
-scp /tmp/bfc_admin_*.dump tomek@NOWE_IP:~/</code></pre>
+scp /tmp/bfc_admin_*.dump ubuntu@NOWE_IP:~/</code></pre>
 
 <h3>9c. Wgraj dump do bazy tymczasowej na nowym boxie</h3>
 <div class="host new">NOWY VPS</div>
-<pre><code>cd ~/repos/befreeclub/befreeclub/infra
+<pre><code>cd ~/apps/befreeclub/infra
 <span class="cmt"># Baza tymczasowa na surowe dane ze starego schematu (public.*)</span>
 docker compose exec -T db createdb -U befreeclub bfc_admin_src
 <span class="cmt"># Wgraj dump (--no-owner bo user nazywa się inaczej niż na starym boxie)</span>
@@ -360,7 +399,7 @@ cat ~/bfc_admin_*.dump | docker compose exec -T db \
 <pre><code><span class="cmt"># uv do odpalenia skryptu (jednorazowo)</span>
 curl -LsSf https://astral.sh/uv/install.sh | sh
 source ~/.bashrc
-cd ~/repos/befreeclub/befreeclub/scripts/data-migration</code></pre>
+cd ~/apps/befreeclub/scripts/data-migration</code></pre>
 <pre><code><span class="cmt"># DRY-RUN: pokazuje plan i liczniki, nic nie zapisuje. DB_PASS = to z backend/.env</span>
 uv run --with asyncpg python migrate_data.py \
   --source-dsn "postgresql://befreeclub:DB_PASS@127.0.0.1:5434/bfc_admin_src" \
@@ -373,7 +412,7 @@ uv run --with asyncpg python migrate_data.py \
 <p>Kod wyjścia <code>0</code> i raport bez słowa <code>ROZJAZD</code> = dane skopiowane i zacommitowane (16 tabel, z zachowaniem id i sekwencji). Raport drukuje sam skrypt.</p>
 <div class="box info"><div class="t">Co jeśli błąd</div><code>1</code> = rozjazd w weryfikacji (zrobiony rollback, baza nietknięta). <code>2</code> = błąd planu/SQL. Powtórka po naprawie: dodaj <code>--truncate</code> i potwierdź wpisując <code>befreeclub</code>. Pełny troubleshooting w <code>scripts/data-migration/MIGRACJA_DANYCH.md</code>.</div>
 <pre><code><span class="cmt"># Spot-check po migracji</span>
-cd ~/repos/befreeclub/befreeclub/infra
+cd ~/apps/befreeclub/infra
 docker compose exec db psql -U befreeclub -d befreeclub -c "SELECT count(*) FROM circle_dm.threads"
 docker compose exec db psql -U befreeclub -d befreeclub -c "SELECT id, email FROM admin.users"
 <span class="cmt"># Sprzątanie bazy tymczasowej</span>
@@ -421,7 +460,7 @@ docker compose stop admin-db      <span class="cmt"># opcjonalnie - baza też of
 <h2 id="bezp"><span class="n">!</span>Bezpieczeństwo - co zabezpieczyć i gdzie</h2>
 <p>Część z tego zrobiłeś po drodze. To zbiorcza checklista dla boxa, który trzyma dane członków i (w fazie 2) klucze Stripe.</p>
 <ul class="ck" id="ck-sec">
-<li><input type="checkbox"><span><b>SSH tylko kluczem</b> - bez hasła, bez roota (krok 3). To zamyka 99% automatycznych ataków.</span></li>
+<li><input type="checkbox"><span><b>SSH bez roota</b> - root nie loguje się przez SSH (krok 3). Z Twojego Maca wchodzisz kluczem; hasło <code>ubuntu</code> zostaje jako awaryjny dostęp z obcego kompa. Mocne, generowane hasło + fail2ban pilnują portu.</span></li>
 <li><input type="checkbox"><span><b>Firewall ufw</b> przepuszcza tylko 22/80/443. Sprawdź <code>sudo ufw status</code>.</span></li>
 <li><input type="checkbox"><span><b>fail2ban</b> aktywny - banuje zgadywanie SSH.</span></li>
 <li><input type="checkbox"><span><b>Postgres nigdy publicznie</b> - compose wystawia go tylko na <code>127.0.0.1:5434</code> (loopback). Z zewnątrz dostęp wyłącznie tunelem SSH. Nie zmieniaj tego na <code>0.0.0.0</code>.</span></li>
@@ -441,7 +480,7 @@ docker compose stop admin-db      <span class="cmt"># opcjonalnie - baza też of
 mkdir -p ~/backups
 cat &gt; ~/backups/pg-backup.sh &lt;&lt;'EOF'
 #!/bin/bash
-cd ~/repos/befreeclub/befreeclub/infra
+cd ~/apps/befreeclub/infra
 F=~/backups/befreeclub_$(date +%F).dump
 docker compose exec -T db pg_dump -U befreeclub -d befreeclub -Fc &gt; "$F"
 ls -t ~/backups/befreeclub_*.dump | tail -n +15 | xargs -r rm
@@ -463,12 +502,54 @@ docker compose start admin-db admin-server</code></pre>
 <h2 id="sciaga"><span class="n">⌘</span>Ściąga - aktualizacja po zmianach kodu</h2>
 <p>Gdy później zmienisz kod (np. doślemy fazę 2), aktualizacja na nowym boxie:</p>
 <div class="host new">NOWY VPS</div>
-<pre><code>cd ~/repos/befreeclub/befreeclub
+<pre><code>cd ~/apps/befreeclub
 git pull
 cd infra
 docker compose up -d --build backend          <span class="cmt"># zmiany w backend/</span>
 docker compose up -d --build frontend-admin   <span class="cmt"># zmiany we frontends/</span></code></pre>
 <p>Backend i front to osobne kontenery - restart jednego nie zdejmuje drugiego. Bazy (<code>db</code>) i tokenów Claude nie ruszasz, przeżywają rebuildy.</p>
+
+<h2 id="ssl"><span class="n">?</span>Dodatek: jak działa SSL i Let's Encrypt</h2>
+<p>To nie jest potrzebne do samego deployu - Caddy robi wszystko sam. Ale warto rozumieć, co się dzieje pod spodem, choćby po to, żeby kiedyś komuś wytłumaczyć. Całość na przykładach z życia.</p>
+
+<h3>Po co SSL - problem do rozwiązania</h3>
+<p>Twoje dane lecą przez internet jak <b>pocztówka</b>: od przeglądarki do serwera przechodzą przez kilkanaście rąk (router, dostawca, routery szkieletowe, hostingownia). Każdy „listonosz" po drodze może ją przeczytać (hasło, numer karty), a nawet dopisać coś od siebie. SSL (dziś technicznie <b>TLS</b>; HTTPS = HTTP zapakowany w TLS) zamienia tę pocztówkę w <b>zaklejoną, plombowaną kopertę</b>. Daje trzy rzeczy: szyfrowanie (listonosze widzą bełkot), tożsamość (gadasz z prawdziwym serwerem, nie podszywaczem) i nienaruszalność (zmiana po drodze zostanie wykryta).</p>
+
+<h3>Problem 1: jak ustalić wspólny klucz, skoro wszyscy podsłuchują</h3>
+<p>Żeby szyfrować, obie strony potrzebują wspólnego sekretu. Ale jak się na niego umówić przez kabel, który każdy podsłuchuje? Rozwiązanie: <b>kłódki</b>. Serwer rozdaje na lewo i prawo <b>otwarte kłódki</b> (klucz publiczny). Każdy może zatrzasnąć kłódkę na pudełku (zaszyfrować), ale <b>otworzyć potrafi tylko serwer</b>, bo tylko on ma kluczyk (klucz prywatny, nigdy nie opuszcza serwera). Nawet jak podsłuchiwacz widzi, jak zamykasz pudełko, to mu to nic nie daje - patrzył na zamykanie, otworzyć nie umie.</p>
+
+<h3>Problem 2: skąd wiesz, że ta kłódka jest naprawdę od tego serwera</h3>
+<p>Atakujący może podstawić <b>swoją</b> kłódkę i powiedzieć „to ja, befreeclub.pl". Zamkniesz hasło w jego pudełku - klasyczny <b>man in the middle</b>. Rozwiązanie: <b>paszport</b>. Każdy może wydrukować kartkę „jestem Tomasz", ale paszport jest podstemplowany przez państwo, któremu wszyscy ufają. Celnik nie zna Cię osobiście - ufa pieczęci.</p>
+<ul>
+<li><b>Paszport</b> = <b>certyfikat</b>: klucz publiczny serwera + nazwa domeny + podpis zaufanej instytucji.</li>
+<li><b>Państwo</b> = <b>CA (Certificate Authority)</b>, urząd certyfikacji.</li>
+<li>Twoja przeglądarka ma wbitą na sztywno <b>listę zaufanych CA</b> (lista „rządów, których paszporty akceptuję").</li>
+</ul>
+<p>Przeglądarka sprawdza: podpisany przez CA, któremu ufam? Na tę domenę? Jeszcze ważny? Jak gra - kłódeczka w pasku. Podpisu CA nie da się podrobić, bo opiera się na tej samej matematyce kłódek (CA podpisuje swoim kluczem prywatnym, każdy weryfikuje publicznym, wbitym w przeglądarkę).</p>
+<div class="box info"><div class="t">Mit do obalenia</div>Kłódeczka <b>nie znaczy „strona uczciwa"</b>, tylko „połączenie jest prywatne i naprawdę gadasz z TĄ domeną". Strona phishingowa też może mieć ważny certyfikat. Paszport potwierdza tożsamość, nie charakter.</div>
+
+<h3>Skąd CA wie, że certyfikat należy się właśnie Tobie</h3>
+<p>Bo inaczej każdy wyrobiłby sobie cert na <code>google.com</code>. Zanim CA podpisze, każe udowodnić, że <b>kontrolujesz domenę</b> (domain validation). Realny przykład: chcesz pozwolenie na dom, urzędnik mówi „przyklej tę dokładną karteczkę na drzwiach, podjadę sprawdzić". Dwa sposoby:</p>
+<ul>
+<li><b>HTTP-01</b>: „połóż plik o tej treści pod <code>http://.../.well-known/acme-challenge/XYZ</code>". Umiesz = kontrolujesz serwer domeny.</li>
+<li><b>DNS-01</b>: „dodaj ten rekord TXT do DNS". Dowód, że kontrolujesz DNS domeny.</li>
+</ul>
+
+<h3>Let's Encrypt i ACME - czemu to się zautomatyzowało</h3>
+<p>Kiedyś cert to była orka: generujesz klucz, wypełniasz formularz, <b>płacisz</b>, wgrywasz pliki, i pamiętasz, żeby co roku odnowić. Zapomniałeś = wygasły cert = czerwony ekran „połączenie nie jest prywatne". <b>Let's Encrypt</b> (od 2015) to darmowy, zautomatyzowany CA. <b>ACME</b> to protokół, w którym serwer sam dogaduje się z Let's Encrypt: „potrzebuję certu" → „udowodnij, połóż ten plik" → kładzie → „masz cert". Bez człowieka, bez płacenia. Certy żyją krótko (90 dni), bo odnawianie jest automatyczne - krótkie życie = mniejsza szkoda przy wycieku klucza.</p>
+
+<h3>Jak ogarnia to Caddy (i czemu kolejność w tym runbooku jest taka)</h3>
+<p>Caddy ma ACME wbudowane. Samym wpisaniem domeny w Caddyfile mówisz „obsłuż po HTTPS", a on dalej sam: widzi, że potrzebuje certu → gada z Let's Encrypt → odpowiada na wyzwanie HTTP-01 (nasłuchuje na 80/443, więc sam podstawia magiczny plik) → dostaje cert → zapisuje w wolumenie <code>caddy-data</code> → serwuje HTTPS → odnawia sam ~30 dni przed końcem. Nigdy tego nie dotykasz.</p>
+<div class="box sec"><div class="t">Tu się spina cały runbook</div>Wyzwanie ACME musi do Caddy <b>dolecieć</b> - dlatego firewall przepuszcza 80/443 (krok 3), a blok domeny dodajesz <b>dopiero po przepięciu DNS</b> (krok 10). Gdyby Caddy dostał blok zanim DNS celuje w nowy box, wyzwanie poleciałoby na stary serwer i cert by nie powstał. Stąd sztywna kolejność: aplikacja stoi → DNS przepięty → blok Caddy.</div>
+
+<h3>Czemu na WordPressie na hostingu czasem trzeba SSL ustawiać ręcznie</h3>
+<p>Bo SSL nie ma nic wspólnego z samym WordPressem. Cert siedzi na warstwie serwera WWW (Apache/nginx) albo na proxy przed nim, nie w PHP. Pytanie brzmi: czy hosting zautomatyzował ten taniec ACME.</p>
+<ul>
+<li><b>Stare / tanie hostingi</b>: nie automatyzowały. Kupowałeś cert, wchodziłeś w cPanel, ręcznie wklejałeś cert i klucz, ustawiałeś przekierowania. Plus WordPressowi trzeba było powiedzieć „używaj https" (adres strony w ustawieniach) i często doinstalować wtyczkę na <b>mixed content</b> (strona na https, ale obrazki linkowane po http, co przeglądarka blokuje).</li>
+<li><b>Dziś / normalne hostingi</b>: większość (cPanel AutoSSL, Plesk) ma wbudowane Let's Encrypt i robi to samo co Caddy - automatycznie. Dlatego coraz częściej już <b>nie</b> trzeba ręcznie.</li>
+</ul>
+<p>Czyli to nigdy nie był „problem WordPressa", tylko „czy warstwa serwera ma automat ACME". Caddy ma go z pudełka. Nowoczesny hosting pod spodem odpala dokładnie ten sam Let's Encrypt, tylko Ci tego nie pokazuje.</p>
+<div class="box tip"><div class="t">Logika w jednym zdaniu</div><b>Kłódki</b> rozwiązują „jak ustalić sekret jawnie", <b>paszport + urząd (certyfikat + CA)</b> rozwiązują „komu ufać", <b>karteczka na drzwiach (challenge)</b> to dowód, że domena Twoja, a <b>ACME / Let's Encrypt / Caddy</b> to robot, który ten cały urzędowy taniec odwala za Ciebie co 60 dni.</div>
 
 <div class="foot">
   Be Free Club - runbook fazy 1. Źródła w repo: <code>infra/README.md</code>, <code>scripts/data-migration/MIGRACJA_DANYCH.md</code>, <code>docs/PLAN_LANDING.md</code> (faza 2), <code>docs/CHECKLISTA_ZRZUT_SUPABASE.md</code> (przed landingiem).
